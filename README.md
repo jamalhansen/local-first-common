@@ -206,6 +206,33 @@ tests/
 uv run pytest
 ```
 
+## Pre-push security hooks
+
+A security scanner runs automatically before every `git push` in any local-first repo. Install it once across all repos from this directory:
+
+```bash
+python3 install_hooks.py --all
+```
+
+Or install in a single repo:
+
+```bash
+python3 install_hooks.py --repo ../my-tool
+```
+
+**What it checks on every push:**
+- Secrets (API keys, tokens) via [gitleaks](https://github.com/gitleaks/gitleaks) — `brew install gitleaks`
+- Hardcoded personal paths (`/Users/<name>/`) in source files
+- Missing `.gitignore` entries for sensitive files (`.env`, `.envrc`, `CLAUDE.md`, `uv.toml`, `.venv`)
+- Accidentally staged sensitive filenames (`.pem`, `.key`, `credentials.json`, etc.)
+
+Run a manual scan at any time:
+```bash
+python3 scripts/pre_push_check.py /path/to/repo --verbose
+```
+
+To bypass in an emergency: `git push --no-verify`
+
 ## Adding a new provider
 
 1. Create `src/local_first_common/providers/myprovider.py` subclassing `BaseProvider`
