@@ -19,12 +19,32 @@ from pathlib import Path
 
 HOOK_SCRIPT = """\
 #!/bin/sh
-# Pre-push security scan — installed by local-first-common/install_hooks.py
-# Runs gitleaks + local-first custom checks before every push.
+# Pre-push checks — installed by local-first-common/install_hooks.py
+# Runs ruff, pytest, and security scan before every push.
 # To bypass (emergencies only): git push --no-verify
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 SCANNER="$HOME/projects/local-first/local-first-common/scripts/pre_push_check.py"
+
+cd "$REPO_ROOT" || exit 1
+
+echo "Running ruff check..."
+uv run ruff check .
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+    echo ""
+    echo "Push blocked: ruff found lint errors. Fix them or use --no-verify to bypass."
+    exit 1
+fi
+
+echo "Running pytest..."
+uv run pytest -q
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+    echo ""
+    echo "Push blocked: tests failed. Fix them or use --no-verify to bypass."
+    exit 1
+fi
 
 echo "Running pre-push security scan..."
 python3 "$SCANNER" "$REPO_ROOT" --verbose
@@ -32,7 +52,7 @@ STATUS=$?
 
 if [ $STATUS -ne 0 ]; then
     echo ""
-    echo "Push blocked. Fix the issues above or use --no-verify to bypass."
+    echo "Push blocked: security scan failed. Fix the issues above or use --no-verify to bypass."
     exit 1
 fi
 
@@ -62,7 +82,7 @@ def install_hook(repo: Path) -> bool:
 
     if hook_path.exists():
         content = hook_path.read_text()
-        if "pre_push_check.py" in content:
+        if "pre_push_check.py" in content and "ruff check" in content:
             print(f"  ✓ {repo.name}: already installed")
             return True
         else:
