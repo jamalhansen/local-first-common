@@ -126,6 +126,7 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "python-frontmatter" },
+    { name = "pyyaml" },
     { name = "typer" },
 ]
 
@@ -139,6 +140,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "python-frontmatter", specifier = ">=1.1.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "typer", specifier = ">=0.24.1" },
 ]
 
