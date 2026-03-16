@@ -1,8 +1,4 @@
-import os
 from datetime import date
-from pathlib import Path
-
-import pytest
 
 from local_first_common.obsidian import (
     find_vault_root,

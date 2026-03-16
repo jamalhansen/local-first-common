@@ -7,6 +7,7 @@ from .ollama import OllamaProvider
 
 PROVIDERS = {
     "ollama": OllamaProvider,
+    "local": OllamaProvider,  # alias for Ollama (backward compat)
     "anthropic": AnthropicProvider,
     "gemini": GeminiProvider,
     "groq": GroqProvider,

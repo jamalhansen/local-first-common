@@ -24,7 +24,10 @@ SAMPLE_JSON = json.dumps({"title": "Test", "score": 8, "tags": ["a", "b"]})
 
 class TestProvidersDict:
     def test_all_providers_registered(self):
-        assert set(PROVIDERS.keys()) == {"ollama", "anthropic", "gemini", "groq", "deepseek"}
+        assert set(PROVIDERS.keys()) == {"ollama", "local", "anthropic", "gemini", "groq", "deepseek"}
+
+    def test_local_alias_is_ollama(self):
+        assert PROVIDERS["local"] is OllamaProvider
 
     def test_each_value_is_base_provider_subclass(self):
         for name, cls in PROVIDERS.items():
