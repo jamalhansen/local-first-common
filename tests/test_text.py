@@ -1,4 +1,39 @@
-from local_first_common.text import looks_like_article, strip_wikilinks
+from unittest.mock import patch
+
+from local_first_common.text import is_english, looks_like_article, strip_wikilinks
+
+
+class TestIsEnglish:
+    def test_english_text_returns_true(self):
+        text = "This is a post about building local-first AI tools with Python and DuckDB."
+        assert is_english(text) is True
+
+    def test_non_english_text_returns_false(self):
+        # Japanese — clearly not English
+        text = "これはPythonとDuckDBを使ったローカルファーストAIツールの構築についての投稿です。"
+        assert is_english(text) is False
+
+    def test_german_text_returns_false(self):
+        text = "Dies ist ein Beitrag über den Aufbau von lokalen KI-Werkzeugen mit Python."
+        assert is_english(text) is False
+
+    def test_fails_open_on_langdetect_exception(self):
+        from langdetect.lang_detect_exception import LangDetectException
+        # detect is imported lazily inside is_english, so we patch at the source module
+        with patch("langdetect.detect", side_effect=LangDetectException(0, "no features")):
+            assert is_english("???") is True
+
+    def test_fails_open_when_langdetect_missing(self):
+        import builtins
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "langdetect":
+                raise ImportError("no module named langdetect")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            assert is_english("some text") is True
 
 
 class TestStripWikilinks:

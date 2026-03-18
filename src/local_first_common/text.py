@@ -3,6 +3,29 @@
 import re
 
 
+def is_english(text: str) -> bool:
+    """Return True if text appears to be written in English.
+
+    Uses langdetect for probabilistic language detection.  Deterministic mode
+    is enabled via ``DetectorFactory.seed = 0`` so results are stable across
+    runs (important for tests and deduplication logic).
+
+    Fails open: returns ``True`` if langdetect is not installed, the text is
+    too short to classify reliably, or detection raises any exception.  This
+    means ambiguous posts are kept rather than silently dropped.
+
+    Requires the ``langdetect`` package:
+        uv add langdetect
+    """
+    try:
+        from langdetect import DetectorFactory, detect  # type: ignore[import]
+
+        DetectorFactory.seed = 0  # deterministic output
+        return detect(text) == "en"
+    except Exception:
+        return True  # fail open — keep posts we can't classify
+
+
 def strip_wikilinks(text: str) -> str:
     """Replace Obsidian wikilinks with their display text.
 
