@@ -18,6 +18,22 @@ from pathlib import Path
 
 # ── Checks ────────────────────────────────────────────────────────────────────
 
+def check_pyproject_paths(repo_path: Path) -> list[str]:
+    """Check pyproject.toml for local path references that should be git URLs."""
+    pyproject = repo_path / "pyproject.toml"
+    if not pyproject.exists():
+        return []
+    
+    content = pyproject.read_text(encoding="utf-8")
+    findings = []
+    
+    # Flag anything pointing to ../local-first-common
+    if 'path = "../local-first-common"' in content:
+        findings.append("  pyproject.toml: local path reference found for 'local-first-common'. Must be a git URL before push.")
+    
+    return findings
+
+
 def check_gitleaks(repo_path: Path) -> list[str]:
     """Run gitleaks against committed history. Returns list of findings."""
     try:
@@ -38,20 +54,31 @@ def check_gitleaks(repo_path: Path) -> list[str]:
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_scan(repo_path: Path, verbose: bool = False) -> bool:
-    """Run gitleaks. Returns True if clean, False if issues found."""
-    findings = check_gitleaks(repo_path)
+    """Run security checks. Returns True if clean, False if issues found."""
+    all_findings: dict[str, list[str]] = {}
 
-    if not findings:
-        if verbose:
-            print("  ✓ Secrets (gitleaks)")
+    checks = [
+        ("Secrets (gitleaks)", check_gitleaks),
+        ("Portability (pyproject.toml)", check_pyproject_paths),
+    ]
+
+    for label, fn in checks:
+        findings = fn(repo_path)
+        if findings:
+            all_findings[label] = findings
+        elif verbose:
+            print(f"  ✓ {label}")
+
+    if not all_findings:
         print("✓ Pre-push security scan passed.")
         return True
 
     print("✗ Pre-push security scan found issues:\n")
-    print("[Secrets (gitleaks)]")
-    for f in findings:
-        print(f)
-    print()
+    for label, findings in all_findings.items():
+        print(f"[{label}]")
+        for f in findings:
+            print(f)
+        print()
     return False
 
 
