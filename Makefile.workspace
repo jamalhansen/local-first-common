@@ -2,7 +2,7 @@
 
 REPOS = $(shell ls -d */ | sed 's/local-ai-tool-template\///' | grep -v 'local-ai-tool-template')
 
-.PHONY: list test sync check fix status verify pre-commit help
+.PHONY: list test sync check fix status verify pre-commit push help
 
 help:
 	@echo "Usage:"
@@ -14,6 +14,7 @@ help:
 	@echo "  make status  - Show which repositories have uncommitted changes"
 	@echo "  make verify  - Ensure all tools have a main.py entry point"
 	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
+	@echo "  make push    - Push all repositories to their remotes"
 
 list:
 	@uv run local-first list
@@ -81,5 +82,13 @@ pre-commit:
 			 uv run ruff check . && \
 			 if [ -d "tests" ]; then uv run pytest -q; fi && \
 			 python3 ../local-first-common/scripts/pre_commit_check.py . --all-files); \
+		fi \
+	done
+
+push:
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/.git" ]; then \
+			echo "--- Pushing $$repo ---"; \
+			(cd $$repo && git push); \
 		fi \
 	done
