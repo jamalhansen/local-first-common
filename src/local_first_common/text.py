@@ -37,6 +37,15 @@ def strip_wikilinks(text: str) -> str:
     return text
 
 
+def strip_html(html: str) -> str:
+    """Remove HTML tags and decode common entities from a string."""
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    text = text.replace("&quot;", '"').replace("&#39;", "'").replace("&apos;", "'")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def looks_like_article(text: str, min_words: int = 200) -> bool:
     """Heuristic: does this look like the body of an article?
 

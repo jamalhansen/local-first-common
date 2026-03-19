@@ -27,6 +27,7 @@ class GeminiProvider(BaseProvider):
         system: str,
         user: str,
         response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
     ) -> Union[str, Dict[str, Any]]:
         try:
             from google import genai
@@ -43,14 +44,68 @@ class GeminiProvider(BaseProvider):
             client = genai.Client(api_key=self.api_key)
             config = types.GenerateContentConfig(system_instruction=system)
 
-            prompt = user
+            contents: list[Any] = [user]
+            if images:
+                for img in images:
+                    contents.append(types.Part.from_bytes(data=img, mime_type="image/jpeg"))
+
             if response_model:
-                prompt += f"\n\nReturn a valid JSON object matching this structure:\n{template}"
+                contents[0] += f"\n\nReturn a valid JSON object matching this structure:\n{template}"
                 config.response_mime_type = "application/json"
 
             response = client.models.generate_content(
                 model=self.model,
-                contents=prompt,
+                contents=contents,
+                config=config,
+            )
+            content = response.text
+        except Exception as e:
+            err = str(e)
+            if "not found" in err.lower() or "invalid" in err.lower():
+                raise RuntimeError(
+                    f"Gemini model '{self.model}' not found. "
+                    f"Known models: {self.known_models}. See {self.models_url}"
+                )
+            raise RuntimeError(f"Gemini API error: {e}")
+
+        result = self._parse_json_response(content, response_model) if response_model else content
+        self._debug_print_response(result)
+        return result
+
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
+    ) -> Union[str, Dict[str, Any]]:
+        try:
+            from google import genai
+            from google.genai import types
+        except ImportError:
+            raise RuntimeError(
+                "google-genai package is required for GeminiProvider. Install it with: uv add google-genai"
+            )
+
+        template = self._get_example_json(response_model) if response_model else ""
+        self._debug_print_request(template, system, user)
+
+        try:
+            client = genai.Client(api_key=self.api_key)
+            config = types.GenerateContentConfig(system_instruction=system)
+
+            contents: list[Any] = [user]
+            if images:
+                for img in images:
+                    contents.append(types.Part.from_bytes(data=img, mime_type="image/jpeg"))
+
+            if response_model:
+                contents[0] += f"\n\nReturn a valid JSON object matching this structure:\n{template}"
+                config.response_mime_type = "application/json"
+
+            response = await client.aio.models.generate_content(
+                model=self.model,
+                contents=contents,
                 config=config,
             )
             content = response.text

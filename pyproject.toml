@@ -11,10 +11,14 @@ dependencies = [
     "httpx>=0.28.1",
     "langdetect>=1.0.9",
     "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
     "python-frontmatter>=1.1.0",
     "pyyaml>=6.0.3",
     "typer>=0.24.1",
 ]
+
+[project.scripts]
+local-first = "local_first_common.cli:app"
 
 [build-system]
 requires = ["hatchling"]

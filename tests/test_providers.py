@@ -44,7 +44,9 @@ class TestBaseProvider:
             default_model = "my-model"
             known_models = []
             models_url = "http://example.com"
-            def complete(self, system, user, response_model=None):
+            def complete(self, system, user, response_model=None, images=None):
+                return ""
+            async def acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
         p = Concrete()
@@ -55,7 +57,9 @@ class TestBaseProvider:
             default_model = "my-model"
             known_models = []
             models_url = "http://example.com"
-            def complete(self, system, user, response_model=None):
+            def complete(self, system, user, response_model=None, images=None):
+                return ""
+            async def acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
         p = Concrete(model="custom")
@@ -66,7 +70,9 @@ class TestBaseProvider:
             default_model = "x"
             known_models = []
             models_url = "http://example.com"
-            def complete(self, system, user, response_model=None):
+            def complete(self, system, user, response_model=None, images=None):
+                return ""
+            async def acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
         p = Concrete()
@@ -82,7 +88,9 @@ class TestBaseProvider:
             default_model = "x"
             known_models = []
             models_url = "http://example.com"
-            def complete(self, system, user, response_model=None):
+            def complete(self, system, user, response_model=None, images=None):
+                return ""
+            async def acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
         p = Concrete()
@@ -94,7 +102,9 @@ class TestBaseProvider:
             default_model = "x"
             known_models = []
             models_url = "http://example.com"
-            def complete(self, system, user, response_model=None):
+            def complete(self, system, user, response_model=None, images=None):
+                return ""
+            async def acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
         p = Concrete()

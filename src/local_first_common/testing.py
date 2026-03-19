@@ -27,6 +27,7 @@ class MockProvider(BaseProvider):
         system: str,
         user: str,
         response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
     ) -> Union[str, Dict[str, Any]]:
         self.calls.append((system, user))
         if self._raise_error:
@@ -34,3 +35,12 @@ class MockProvider(BaseProvider):
         if response_model:
             return self._parse_json_response(self._response, response_model)
         return self._response
+
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
+    ) -> Union[str, Dict[str, Any]]:
+        return self.complete(system, user, response_model, images=images)

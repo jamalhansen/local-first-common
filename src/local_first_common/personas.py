@@ -1,9 +1,11 @@
 """Persona store: load YAML persona files into structured PersonaCard models."""
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
 import yaml
+import frontmatter
 from pydantic import BaseModel
 
 DEFAULT_PERSONAS_DIR = Path(
@@ -20,7 +22,8 @@ class PersonaCard(BaseModel):
     name: str
     archetype: str
     domain: str
-    principle: str
+    princilege: str = "" # Some cards use principle, some use privileage, handle mapping if needed
+    principle: str = ""
     lens: str
     bias: PersonaBias
     evaluation_questions: list[str]
@@ -28,6 +31,38 @@ class PersonaCard(BaseModel):
     penalizes: list[str]
     conflict_signature: str
     system_prompt: str
+
+
+def get_brand_voice(path: Optional[Path] = None) -> str:
+    """Load brand voice from a file. Returns empty string if not found.
+    
+    This ensures personal style guides stay out of the repository.
+    Optimizes by extracting 'The Short Version' or 'Writing Style' sections if they exist.
+    """
+    from .config import settings
+    
+    voice_path = path or settings.brand_voice_path
+    if not voice_path or not Path(voice_path).exists():
+        return ""
+        
+    path_obj = Path(voice_path)
+    try:
+        post = frontmatter.load(str(path_obj))
+        content = post.content
+    except Exception:
+        content = path_obj.read_text(encoding="utf-8")
+
+    # Try to find a concise section
+    short_version_match = re.search(
+        r"## (?:The Short Version|Writing Style)\n\n(.*?)(?=\n##|$)",
+        content,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if short_version_match:
+        return short_version_match.group(1).strip()
+
+    # Fallback to full content (truncated if extreme)
+    return content[:2000].strip()
 
 
 def _personas_dir(override: Optional[Path] = None) -> Path:

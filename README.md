@@ -1,6 +1,6 @@
 # local-first-common
 
-Shared utilities for local-first AI tools. Extracts the common plumbing — LLM providers, Obsidian vault I/O, Typer CLI helpers, and test utilities — so each tool stays focused on what it actually does.
+Shared utilities for local-first AI tools. Extracts the common plumbing — LLM providers, config management, logging, Obsidian vault I/O, social media fetching, Typer CLI helpers, and test utilities.
 
 ## Installation
 
@@ -15,118 +15,114 @@ Then run `uv sync`.
 
 ### Local development override
 
-When actively changing this library alongside a project, add a `uv.toml` in the project directory (gitignored) to point at your local clone:
+When actively changing this library alongside a project, use `uv` to link it locally:
 
-```toml
-# uv.toml  (add to .gitignore)
-[sources]
-local-first-common = {path = "../local-first-common", editable = true}
+```bash
+uv add --editable ../local-first-common
 ```
 
 ## What's included
 
 ### `local_first_common.providers`
 
-Multi-provider LLM abstraction. All providers share a common interface: `complete(system, user, response_model=None) -> str | dict`.
-
-Pass a Pydantic model as `response_model` to get back a parsed `dict`. Omit it to get a plain `str`.
+Multi-provider LLM abstraction with native **async** and **vision** support. All providers share a common interface: `complete(...)` and `acomplete(...)`.
 
 ```python
 from local_first_common.providers import PROVIDERS
 
 provider = PROVIDERS["ollama"]()
-result = provider.complete("You are a helpful assistant.", "Summarise this in 3 bullets.")
+# Sync
+result = provider.complete("sys", "user")
+# Async
+result = await provider.acomplete("sys", "user")
 
-# Structured output via Pydantic
-from pydantic import BaseModel
-
-class Summary(BaseModel):
-    bullets: list[str]
-    confidence: int
-
-result = provider.complete("...", "...", response_model=Summary)
-# {"bullets": [...], "confidence": 8}
+# Vision (Base64 strings)
+result = provider.complete("describe", "img", images=["..."])
 ```
 
-**Available providers:**
+**Available providers:** `ollama`, `anthropic`, `gemini`, `groq`, `deepseek`.
 
-| Key | Class | Default model | Requires |
-|---|---|---|---|
-| `ollama` | `OllamaProvider` | `phi4-mini` | Ollama running locally |
-| `anthropic` | `AnthropicProvider` | `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` + `uv add anthropic` |
-| `gemini` | `GeminiProvider` | `gemini-2.0-flash` | `GEMINI_API_KEY` + `uv add google-genai` |
-| `groq` | `GroqProvider` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
-| `deepseek` | `DeepSeekProvider` | `deepseek-chat` | `DEEPSEEK_API_KEY` |
+#### Intelligent Model Discovery (Ollama)
 
-`anthropic` and `google-genai` SDKs are lazy-imported — only need to be installed in projects that actually use those providers.
+The toolkit can recommend the best-fit Ollama models based on your current machine's hardware (RAM). This is **on-demand only** and never intrusive.
 
-Override the model at instantiation time:
+**1. Using Intent-based Aliases**
+You can ask for a recommendation by passing an alias to the `--model` flag:
+
+- `@best`: The highest-quality model your machine can comfortably run (e.g., `phi4` on a Mac Mini, `phi4-mini` on a MacBook Air).
+- `@fast`: The lowest-latency model installed (e.g., `phi4-mini` or `llama3.2:1b`).
+- `@vision`: The best installed model with vision capabilities (e.g., `llama3.2-vision` or `llava`).
+- `@encoding`: Optimized for embeddings and fast processing.
+
+**2. The Management CLI**
+Run the shared management tool to see what is recommended for your current machine:
+
+```bash
+uv run local-first recommend
+```
+
+If you omit the `--model` flag entirely, the tool uses the provider's standard default model (e.g., `phi4-mini`) without performing discovery.
+
+---
+
+### `local_first_common.config`
+
+Centralized environment variable handling via Pydantic `BaseSettings`. Loads from ENV or `.env` files.
 
 ```python
-provider = PROVIDERS["anthropic"](model="claude-sonnet-4-6")
-provider = PROVIDERS["ollama"](model="llama3.2:3b")
+from local_first_common.config import settings
+
+print(settings.obsidian_vault_path)
+print(settings.model_provider)
+
+# Standardized data paths
+db_path = settings.get_db_path("my-tool", "cache.db")
+# ~/.local/share/local-ai-tools/my-tool/cache.db
+```
+
+---
+
+### `local_first_common.logging`
+
+Standardized Rich-based logging.
+
+```python
+from local_first_common.logging import setup_logging
+import logging
+
+setup_logging(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info("Tool started [bold cyan]successfully[/]")
+```
+
+---
+
+### `local_first_common.social`
+
+Centralized social media fetching logic for Bluesky and Mastodon.
+
+```python
+from local_first_common.social import bluesky, mastodon
+
+# Fetch from Bluesky
+posts = bluesky.fetch_posts(["#python", "localai"], limit=10)
+# Fetch from Mastodon
+statuses = mastodon.fetch_posts(["#ai"], instances=["mastodon.social"])
 ```
 
 ---
 
 ### `local_first_common.obsidian`
 
-Utilities for reading and writing Obsidian markdown vaults.
-
-```python
-from local_first_common.obsidian import (
-    find_vault_root,
-    get_daily_note_path,
-    get_week_dates,
-    append_to_daily_note,
-    render_obsidian_template,
-    load_daily_notes_for_week,
-    iter_daily_notes,
-    format_notes_for_llm,
-)
-from datetime import date
-from pathlib import Path
-
-# Locate vault (reads OBSIDIAN_VAULT_PATH env var, or walks up for .obsidian/)
-vault = find_vault_root()
-
-# Daily note path
-path = get_daily_note_path(vault, date.today(), subdir="Timeline")
-
-# Append a section to a daily note (creates file + parent dirs if needed)
-append_to_daily_note(path, "## Voice Journal\n\n- Thought one\n")
-
-# Load a week of notes for an LLM prompt
-dates = get_week_dates(date.today())
-notes = load_daily_notes_for_week(vault, dates, subdir="Timeline")
-prompt_text = format_notes_for_llm(notes)
-
-# Render Obsidian template variables
-render_obsidian_template("{{date:YYYY-MM-DD}}", date.today())  # "2026-03-10"
-render_obsidian_template("{{yesterday}}", date.today())        # "2026-03-09"
-```
-
-**`find_vault_root(env_var="OBSIDIAN_VAULT_PATH")`** — checks env var first, then walks up looking for `.obsidian/`, falls back to cwd.
-
-**`append_to_daily_note(note_path, content, template_path=None)`** — appends to an existing note with `---` separator, or creates a new one rendered from a template.
+Utilities for reading and writing Obsidian markdown vaults. Standardizes vault discovery and note loading.
 
 ---
 
 ### `local_first_common.cli`
 
-Typer option factories for consistent `--provider`, `--model`, `--dry-run`, `--verbose`, `--debug` flags across all tools.
+Typer option factories for consistent CLI flags across all tools.
 
 ```python
-import typer
-from typing import Annotated, Optional
-from local_first_common.providers import PROVIDERS
-from local_first_common.cli import (
-    provider_option, model_option, dry_run_option,
-    verbose_option, debug_option, resolve_provider,
-)
-
-app = typer.Typer()
-
 @app.command()
 def run(
     provider: Annotated[str, provider_option(PROVIDERS)] = "ollama",
@@ -135,106 +131,26 @@ def run(
     verbose: Annotated[bool, verbose_option()] = False,
     debug: Annotated[bool, debug_option()] = False,
 ):
-    llm = resolve_provider(PROVIDERS, provider, model, debug=debug)
-    ...
+    # setup_logging is automatically called inside resolve_provider
+    llm = resolve_provider(PROVIDERS, provider, model, debug=debug, verbose=verbose)
 ```
-
-**`provider_option(providers, default="ollama")`** — respects the `MODEL_PROVIDER` env var as a fallback default.
-
-**`resolve_provider(providers, name, model, debug=False)`** — instantiates the named provider; raises `typer.BadParameter` with valid options listed on unknown names.
 
 ---
 
 ### `local_first_common.testing`
 
-`MockProvider` for use in project test suites. Records all calls, returns preset responses, optionally raises errors.
-
-```python
-from local_first_common.testing import MockProvider
-
-def test_my_feature():
-    provider = MockProvider(response='{"score": 9, "summary": "Great post"}')
-
-    # Plain string response
-    result = provider.complete("system prompt", "user message")
-    assert result == '{"score": 9, "summary": "Great post"}'
-
-    # Structured output
-    from pydantic import BaseModel
-    class Score(BaseModel):
-        score: int
-        summary: str
-
-    result = provider.complete("sys", "usr", response_model=Score)
-    assert result["score"] == 9
-
-    # Call history
-    assert len(provider.calls) == 2
-    assert provider.calls[0] == ("system prompt", "user message")
-
-    # Error path testing
-    failing = MockProvider(response="x", raise_error="API unavailable")
-    with pytest.raises(RuntimeError, match="API unavailable"):
-        failing.complete("sys", "usr")
-```
-
-## Project structure
-
-```
-src/local_first_common/
-├── __init__.py
-├── providers/
-│   ├── __init__.py      # PROVIDERS dict + all exports
-│   ├── base.py          # BaseProvider ABC
-│   ├── ollama.py        # httpx-based, no SDK required
-│   ├── anthropic.py     # lazy import: uv add anthropic
-│   ├── groq.py          # httpx-based
-│   ├── deepseek.py      # httpx-based
-│   └── gemini.py        # lazy import: uv add google-genai
-├── obsidian.py          # Vault I/O utilities
-├── cli.py               # Typer option helpers
-└── testing.py           # MockProvider
-tests/
-├── test_providers.py    # 45 tests, all providers mocked
-├── test_obsidian.py     # 21 tests, file I/O via tmp_path
-└── test_testing.py      # 6 tests
-```
-
-## Running tests
-
-```bash
-uv run pytest
-```
+`MockProvider` for deterministic unit testing. Now supports `acomplete` and `images`.
 
 ## Pre-push security hooks
 
-A security scanner runs automatically before every `git push` in any local-first repo. Install it once across all repos from this directory:
+Install secret scanning and path sanitization hooks across all repos:
 
 ```bash
 python3 install_hooks.py --all
 ```
 
-Or install in a single repo:
-
-```bash
-python3 install_hooks.py --repo ../my-tool
-```
-
-**What it checks on every push:**
-- Secrets (API keys, tokens) via [gitleaks](https://github.com/gitleaks/gitleaks) — `brew install gitleaks`
-- Hardcoded personal paths (`/Users/<name>/`) in source files
-- Missing `.gitignore` entries for sensitive files (`.env`, `.envrc`, `CLAUDE.md`, `uv.toml`, `.venv`)
-- Accidentally staged sensitive filenames (`.pem`, `.key`, `credentials.json`, etc.)
-
-Run a manual scan at any time:
-```bash
-python3 scripts/pre_push_check.py /path/to/repo --verbose
-```
-
-To bypass in an emergency: `git push --no-verify`
-
 ## Adding a new provider
 
-1. Create `src/local_first_common/providers/myprovider.py` subclassing `BaseProvider`
-2. Add it to `PROVIDERS` in `src/local_first_common/providers/__init__.py`
-3. Add a `TestMyProvider` class in `tests/test_providers.py`
+1. Create `src/local_first_common/providers/myprovider.py` subclassing `BaseProvider`.
+2. Implement both `complete` and `acomplete`.
+3. Add it to `PROVIDERS` in `src/local_first_common/providers/__init__.py`.

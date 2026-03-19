@@ -19,6 +19,16 @@ class BaseProvider(ABC):
         system: str,
         user: str,
         response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
+    ) -> Union[str, Dict[str, Any]]: ...
+
+    @abstractmethod
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
     ) -> Union[str, Dict[str, Any]]: ...
 
     def _get_example_json(self, model: Any) -> str:
