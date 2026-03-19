@@ -17,7 +17,7 @@ help:
 	@echo "  make push    - Push all repositories to their remotes"
 
 list:
-	@uv run local-first list
+	@cd local-first-common && uv run local-first list
 
 sync:
 	@for repo in $(REPOS); do \
