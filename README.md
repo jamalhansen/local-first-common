@@ -141,6 +141,30 @@ def run(
 
 `MockProvider` for deterministic unit testing. Now supports `acomplete` and `images`.
 
+## Workspace Orchestration
+
+This repository contains a `Makefile.workspace` designed to manage the entire local-first AI toolkit from the workspace root. 
+
+### Setup
+
+To use the global commands, create a symlink in your workspace root:
+
+```bash
+ln -s local-first-common/Makefile.workspace Makefile
+```
+
+### Available Commands
+
+Run these from the workspace root:
+
+- `make list`: Show all tools in the workspace.
+- `make sync`: Run `uv sync` across all projects.
+- `make test`: Run all test suites.
+- `make check`: Run `ruff` linting across the workspace.
+- `make pre-commit`: Run all verification steps (ruff, tests, security) for all projects.
+- `make status`: Show which sub-repositories have uncommitted changes.
+- `make verify`: Ensure all tools strictly adhere to the `main.py` entry point standard.
+
 ## Pre-push security hooks
 
 Install secret scanning and path sanitization hooks across all repos:

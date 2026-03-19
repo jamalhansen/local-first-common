@@ -1,0 +1,85 @@
+# Makefile for managing local-first AI tools workspace
+
+REPOS = $(shell ls -d */ | sed 's/local-ai-tool-template\///' | grep -v 'local-ai-tool-template')
+
+.PHONY: list test sync check fix status verify pre-commit help
+
+help:
+	@echo "Usage:"
+	@echo "  make list    - List all tools in the workspace"
+	@echo "  make sync    - Run 'uv sync' in all repositories"
+	@echo "  make test    - Run 'uv run pytest' in all repositories"
+	@echo "  make check   - Run 'uv run ruff check' in all repositories"
+	@echo "  make fix     - Run 'uv run ruff check --fix' in all repositories"
+	@echo "  make status  - Show which repositories have uncommitted changes"
+	@echo "  make verify  - Ensure all tools have a main.py entry point"
+	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
+
+list:
+	@uv run local-first list
+
+sync:
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			echo "--- Syncing $$repo ---"; \
+			(cd $$repo && uv sync); \
+		fi \
+	done
+
+test:
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/tests" ]; then \
+			echo "--- Testing $$repo ---"; \
+			(cd $$repo && uv run pytest -q); \
+		fi \
+	done
+
+check:
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			echo "--- Checking $$repo ---"; \
+			(cd $$repo && uv run ruff check .); \
+		fi \
+	done
+
+fix:
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			echo "--- Fixing $$repo ---"; \
+			(cd $$repo && uv run ruff check --fix .); \
+		fi \
+	done
+
+status:
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/.git" ]; then \
+			STATUS=$$(cd $$repo && git status --porcelain); \
+			if [ -n "$$STATUS" ]; then \
+				echo "--- $$repo ---"; \
+				(cd $$repo && git status -s); \
+				echo ""; \
+			fi \
+		fi \
+	done
+
+verify:
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			if [ ! -f "$$repo/main.py" ]; then \
+				echo "--- $$repo ---"; \
+				echo "  ✗ Missing main.py"; \
+				echo ""; \
+			fi \
+		fi \
+	done
+
+pre-commit:
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			echo "--- Pre-commit: $$repo ---"; \
+			(cd $$repo && \
+			 uv run ruff check . && \
+			 if [ -d "tests" ]; then uv run pytest -q; fi && \
+			 python3 ../local-first-common/scripts/pre_commit_check.py . --all-files); \
+		fi \
+	done
