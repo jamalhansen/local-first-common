@@ -2,7 +2,7 @@
 
 REPOS = $(shell ls -d */ | sed 's/local-ai-tool-template\///' | grep -v 'local-ai-tool-template')
 
-.PHONY: list test sync check fix status verify pre-commit push help
+.PHONY: list test sync check fix status verify-tools pre-commit push check-pushed help
 
 help:
 	@echo "Usage:"
@@ -12,7 +12,8 @@ help:
 	@echo "  make check   - Run 'uv run ruff check' in all repositories"
 	@echo "  make fix     - Run 'uv run ruff check --fix' in all repositories"
 	@echo "  make status  - Show which repositories have uncommitted changes"
-	@echo "  make verify  - Ensure all tools have a main.py entry point"
+	@echo "  make check-pushed - Show which repositories have unpushed commits"
+	@echo "  make verify-tools - Check that all tools follow the standardized structure"
 	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make push    - Push all repositories to their remotes"
 
@@ -63,14 +64,52 @@ status:
 		fi \
 	done
 
-verify:
+check-pushed:
 	@for repo in $(REPOS); do \
-		if [ -f "$$repo/pyproject.toml" ]; then \
-			if [ ! -f "$$repo/main.py" ]; then \
-				echo "--- $$repo ---"; \
-				echo "  ✗ Missing main.py"; \
-				echo ""; \
+		if [ -d "$$repo/.git" ]; then \
+			UPSTREAM=$$(cd $$repo && git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null); \
+			if [ -n "$$UPSTREAM" ]; then \
+				AHEAD=$$(cd $$repo && git rev-list --count @{u}..HEAD 2>/dev/null); \
+				if [ "$$AHEAD" -gt 0 ] 2>/dev/null; then \
+					echo "--- $$repo is ahead by $$AHEAD commits ---"; \
+					(cd $$repo && git log @{u}..HEAD --oneline); \
+					echo ""; \
+				fi \
+			else \
+				echo "--- $$repo (no upstream tracking) ---"; \
 			fi \
+		fi \
+	done
+
+verify-tools:
+	@for repo in $(REPOS); do \
+		case "$$repo" in \
+			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
+		esac; \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			echo "--- Checking $$repo ---"; \
+			ERRORS=0; \
+			if [ ! -f "$$repo/src/main.py" ] && [ ! -f "$$repo/main.py" ]; then \
+				echo "  ✗ Missing main.py (neither in root nor src/)"; \
+				ERRORS=$$((ERRORS + 1)); \
+			fi; \
+			if [ ! -f "$$repo/src/logic.py" ] && [ ! -f "$$repo/logic.py" ] && ! find "$$repo/src" -name "logic.py" | grep -q "."; then \
+				echo "  ✗ Missing logic.py (not in root, src/, or sub-packages)"; \
+				ERRORS=$$((ERRORS + 1)); \
+			fi; \
+			MAIN_FILE=""; \
+			if [ -f "$$repo/src/main.py" ]; then MAIN_FILE="$$repo/src/main.py"; \
+			elif [ -f "$$repo/main.py" ]; then MAIN_FILE="$$repo/main.py"; fi; \
+			if [ -n "$$MAIN_FILE" ]; then \
+				if grep -q "Standard template for local-first AI tools" "$$MAIN_FILE"; then \
+					echo "  ✗ main.py still contains boilerplate help text"; \
+					ERRORS=$$((ERRORS + 1)); \
+				fi; \
+			fi; \
+			if [ "$$ERRORS" -eq 0 ]; then \
+				echo "  ✓ Structure looks good"; \
+			fi; \
+			echo ""; \
 		fi \
 	done
 
