@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-# Actually, let's keep it simple and not depend on internal relative imports if not sure
-# Better to use absolute if it's a library
-
 class SocialReader(ABC):
     """Abstract base class for social media post readers."""
 
     @abstractmethod
-    def search(self, query: str, limit: int = 20) -> Sequence:
-        """Search for posts matching a query."""
+    def fetch_posts(self, keywords: Sequence[str], limit: int = 25) -> Sequence[dict]:
+        """Search for posts matching keywords. Returns raw post dicts."""
+        pass
+
+    @abstractmethod
+    def extract_urls(self, post: dict) -> list[str]:
+        """Extract external URLs from a post dict."""
         pass

@@ -1,5 +1,7 @@
 import logging
 import requests
+from typing import Sequence, Optional
+from .base import SocialReader
 
 logger = logging.getLogger(__name__)
 
@@ -8,11 +10,7 @@ _AUTH_URL = "https://bsky.social/xrpc/com.atproto.server.createSession"
 
 
 def get_auth_token(handle: str, app_password: str) -> str | None:
-    """Fetch a bearer token from Bluesky using handle + app password.
-
-    POSTs to com.atproto.server.createSession and returns the accessJwt,
-    or None if authentication fails (bad credentials, network error, etc.).
-    """
+    """Fetch a bearer token from Bluesky using handle + app password."""
     try:
         resp = requests.post(
             _AUTH_URL,
@@ -27,19 +25,13 @@ def get_auth_token(handle: str, app_password: str) -> str | None:
 
 
 def extract_urls_from_post(post: dict) -> list[str]:
-    """Extract article URLs from a Bluesky PostView dict.
-
-    Checks embed link cards first (most reliable), then falls back to
-    richtext facet links.
-    """
-    # Embed external link card — present when a link preview card is attached
+    """Extract article URLs from a Bluesky PostView dict."""
     embed = post.get("embed") or {}
     external = embed.get("external") or {}
     uri = external.get("uri", "").strip()
     if uri:
         return [uri]
 
-    # Richtext facets — inline link annotations in the post text
     urls: list[str] = []
     facets = (post.get("record") or {}).get("facets") or []
     for facet in facets:
@@ -68,7 +60,7 @@ def has_external_link(post: dict) -> bool:
 
 
 def fetch_posts(
-    keywords: list[str],
+    keywords: Sequence[str],
     token: str | None = None,
     limit: int = 25,
 ) -> list[dict]:
@@ -99,3 +91,20 @@ def fetch_posts(
             logger.warning("Bluesky fetch failed for %r: %s", keyword, e)
             continue
     return all_posts
+
+
+class BlueskyReader(SocialReader):
+    """Refined Bluesky reader class."""
+
+    def __init__(self, handle: str = "", app_password: str = ""):
+        self.handle = handle
+        self.app_password = app_password
+        self._token: Optional[str] = None
+        if handle and app_password:
+            self._token = get_auth_token(handle, app_password)
+
+    def fetch_posts(self, keywords: Sequence[str], limit: int = 25) -> list[dict]:
+        return fetch_posts(keywords, token=self._token, limit=limit)
+
+    def extract_urls(self, post: dict) -> list[str]:
+        return extract_urls_from_post(post)

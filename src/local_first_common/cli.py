@@ -12,8 +12,12 @@ from .logging import setup_logging
 app = typer.Typer(name="local-first", help="Local-first AI tools management.")
 
 
-def provider_option(providers: dict, default: str = "ollama") -> Any:
+def provider_option(providers: dict | None = None, default: str = "ollama") -> Any:
     """Return a Typer Option for --provider / -p with env var fallback."""
+    if providers is None:
+        from .providers import PROVIDERS
+        providers = PROVIDERS
+    
     choices = list(providers.keys())
     env_default = os.environ.get("MODEL_PROVIDER", default)
     return typer.Option(
@@ -65,13 +69,16 @@ def debug_option() -> Any:
 
 
 def resolve_provider(
-    providers: dict,
-    provider_name: str,
-    model: Optional[str],
+    providers: dict | None = None,
+    provider_name: str = "ollama",
+    model: Optional[str] = None,
     debug: bool = False,
     verbose: bool = False,
 ):
     """Instantiate the named provider, with validation and helpful error on unknown name."""
+    if providers is None:
+        from .providers import PROVIDERS
+        providers = PROVIDERS
     if debug:
         setup_logging(level=logging.DEBUG)
     elif verbose:

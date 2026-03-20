@@ -1,43 +1,53 @@
 import logging
 import requests
+from typing import Sequence
+from .base import SocialReader
 
 logger = logging.getLogger(__name__)
 
-
-def keyword_to_hashtag(keyword: str) -> str:
-    """Convert a keyword to a valid Mastodon hashtag (strips spaces and hyphens)."""
-    return keyword.replace(" ", "").replace("-", "")
-
+DEFAULT_INSTANCES = ["fosstodon.org", "mastodon.social"]
 
 def fetch_posts(
-    keywords: list[str],
-    instances: list[str] | None = None,
-    limit: int = 40,
+    keywords: Sequence[str],
+    instances: Sequence[str] = DEFAULT_INSTANCES,
+    limit: int = 25,
 ) -> list[dict]:
-    """Search Mastodon hashtag timelines for the given keywords."""
-    instances = instances or ["mastodon.social"]
-    all_statuses = []
+    """Search Mastodon for posts matching keywords (as hashtags)."""
+    all_posts = []
     seen_ids = set()
 
     for instance in instances:
         for keyword in keywords:
-            hashtag = keyword_to_hashtag(keyword)
-            url = f"https://{instance}/api/v1/timelines/tag/{hashtag}"
-
+            tag = keyword.lstrip("#")
+            url = f"https://{instance}/api/v1/timelines/tag/{tag}"
             try:
                 resp = requests.get(url, params={"limit": limit}, timeout=10)
                 resp.raise_for_status()
-                statuses = resp.json()
-                for status in statuses:
-                    status_id = status.get("id")
-                    if status_id and status_id not in seen_ids:
-                        seen_ids.add(status_id)
-                        # Tag with source instance
-                        status["_instance"] = instance
-                        all_statuses.append(status)
+                for post in resp.json():
+                    if post["id"] not in seen_ids:
+                        seen_ids.add(post["id"])
+                        all_posts.append(post)
             except requests.RequestException as e:
-                logger.warning(
-                    "Mastodon fetch failed for %s #%s: %s", instance, hashtag, e
-                )
+                logger.warning("Mastodon fetch failed for %s on %s: %s", tag, instance, e)
                 continue
-    return all_statuses
+    return all_posts
+
+def extract_urls_from_post(post: dict) -> list[str]:
+    """Extract URLs from a Mastodon post dict."""
+    return [link.get("url") for link in post.get("card", {}).get("links", []) if link.get("url")]
+
+class MastodonReader(SocialReader):
+    """Refined Mastodon reader class."""
+
+    def __init__(self, instances: Sequence[str] = DEFAULT_INSTANCES):
+        self.instances = instances
+
+    def fetch_posts(self, keywords: Sequence[str], limit: int = 25) -> list[dict]:
+        return fetch_posts(keywords, instances=self.instances, limit=limit)
+
+    def extract_urls(self, post: dict) -> list[str]:
+        # Mastodon stores the main link in the 'card'
+        card = post.get("card")
+        if card and card.get("url"):
+            return [card["url"]]
+        return []
