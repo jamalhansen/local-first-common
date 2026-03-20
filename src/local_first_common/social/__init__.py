@@ -1,3 +1,4 @@
-from . import bluesky, mastodon
+from . import base, bluesky, mastodon
+from .base import SocialReader
 
-__all__ = ["bluesky", "mastodon"]
+__all__ = ["base", "bluesky", "mastodon", "SocialReader"]

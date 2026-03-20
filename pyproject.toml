@@ -24,6 +24,9 @@ local-first = "local_first_common.cli:app"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/local_first_common"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
