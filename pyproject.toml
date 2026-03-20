@@ -30,4 +30,5 @@ packages = ["src/local_first_common"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
 ]

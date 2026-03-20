@@ -2,13 +2,15 @@
 
 REPOS = $(shell ls -d */ | sed 's/local-ai-tool-template\///' | grep -v 'local-ai-tool-template')
 
-.PHONY: list test sync check fix status verify-tools tool-help verify-hooks pre-commit push check-pushed help
+.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help
 
 help:
 	@echo "Usage:"
 	@echo "  make list    - List all tools in the workspace"
 	@echo "  make sync    - Run 'uv sync' in all repositories"
 	@echo "  make test    - Run 'uv run pytest' in all repositories"
+	@echo "  make coverage - Show test coverage for all repositories"
+	@echo "  make stats   - Show file length statistics and identify large files"
 	@echo "  make check   - Run 'uv run ruff check' in all repositories"
 	@echo "  make fix     - Run 'uv run ruff check --fix' in all repositories"
 	@echo "  make status  - Show which repositories have uncommitted changes"
@@ -32,11 +34,27 @@ sync:
 
 test:
 	@for repo in $(REPOS); do \
-		if [ -d "$$repo/tests" ]; then \
+		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Testing $$repo ---"; \
-			(cd $$repo && uv run pytest -q); \
+			(cd $$repo && uv run pytest); \
 		fi \
 	done
+
+coverage:
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			echo "--- Coverage: $$repo ---"; \
+			(cd $$repo && uv run pytest --cov=src --cov-report=term-missing); \
+		fi \
+	done
+
+stats:
+	@echo "--- Top 10 Longest Python Files ---"
+	@find . -name "*.py" -not -path "*/.venv/*" -not -path "*/__pycache__/*" -exec wc -l {} + | sort -rn | head -n 11
+	@echo ""
+	@echo "--- Files exceeding 400 lines (Refactor Candidates) ---"
+	@find . -name "*.py" -not -path "*/.venv/*" -not -path "*/__pycache__/*" -exec wc -l {} + | awk '$$1 > 400 && $$2 != "total" {print $$0}' | sort -rn
+
 
 check:
 	@for repo in $(REPOS); do \
