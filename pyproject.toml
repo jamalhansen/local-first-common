@@ -1,7 +1,7 @@
 [project]
 name = "local-first-common"
 version = "0.1.0"
-description = "Add your description here"
+description = "Shared library: LLM providers, Obsidian utilities, CLI helpers, and test mocks"
 readme = "README.md"
 authors = [
     { name = "Jamal Hansen", email = "jamal.hansen@gmail.com" }
