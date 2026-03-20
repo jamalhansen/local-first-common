@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.0.0"
+HOOK_VERSION = "1.1"
 
 PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
@@ -82,7 +82,7 @@ STATUS=$?
 
 if [ $STATUS -ne 0 ]; then
     echo ""
-    echo "Push blocked: gitleaks found secrets in committed history. Fix the issues above or use --no-verify to bypass."
+    echo "Push blocked: Security or portability issues found. Fix the issues above or use --no-verify to bypass."
     exit 1
 fi
 
