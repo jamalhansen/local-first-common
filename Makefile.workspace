@@ -1,6 +1,6 @@
 # Makefile for managing local-first AI tools workspace
 
-REPOS = $(shell ls -d */ | sed 's/local-ai-tool-template\///' | grep -v 'local-ai-tool-template')
+REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
 .PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help
 
@@ -20,11 +20,17 @@ help:
 	@echo "  make tool-help - Show CLI help/parameters for all tools"
 	@echo "  make verify-hooks - Check if git hooks are installed and up-to-date"
 	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
-	@echo "  make commit m=\"msg\" - Commit all changes across repositories with msg"
-	@echo "  make push    - Push all repositories to their remotes"
+	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
+	@echo "  make push    - Push all repositories to their remotes (prompts for confirmation)"
 
 list:
-	@cd local-first-common && uv run local-first list
+	@echo "Local-first AI tools:"
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			desc=$$(grep '^description' "$$repo/pyproject.toml" 2>/dev/null | head -1 | cut -d'"' -f2); \
+			printf "  %-42s %s\n" "$$repo" "$$desc"; \
+		fi \
+	done
 
 sync:
 	@for repo in $(REPOS); do \
@@ -189,12 +195,15 @@ pre-commit:
 			(cd $$repo && \
 			 uv run ruff check . && \
 			 if [ -d "tests" ]; then uv run pytest -q; fi && \
-			 python3 ../local-first-common/scripts/pre_commit_check.py . --all-files); \
+			 python3 ../local-first-common/scripts/pre_push_check.py . --all-files); \
 		fi \
 	done
 
 push:
-	@for repo in $(REPOS); do \
+	@echo "WARNING: About to push ALL repositories to their remotes."
+	@echo "Press Enter to continue or Ctrl-C to abort."
+	@read -r _confirm; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
 			echo "--- Pushing $$repo ---"; \
 			(cd $$repo && git push); \
@@ -211,7 +220,7 @@ commit:
 			STATUS=$$(cd $$repo && git status --porcelain); \
 			if [ -n "$$STATUS" ]; then \
 				echo "--- Committing in $$repo ---"; \
-				(cd $$repo && git add . && git commit -m "$(m)"); \
+				(cd $$repo && git add -u && git commit -m "$(m)"); \
 			fi \
 		fi \
 	done
