@@ -13,7 +13,7 @@ class MockProvider(BaseProvider):
 
     def __init__(
         self,
-        response: str,
+        response: str = "Default mock response",
         model: Optional[str] = None,
         raise_error: Optional[str] = None,
     ):
