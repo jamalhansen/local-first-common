@@ -41,17 +41,26 @@ def model_option() -> Any:
 def dry_run_option() -> Any:
     """Return a Typer Option for --dry-run / -n."""
     return typer.Option(
-        ...,
+        False,
         "--dry-run",
         "-n",
-        help="Preview output without writing files or calling LLM.",
+        help="Perform the action and call the LLM, but do not write to disk/vault/DB. Print result to stdout.",
+    )
+
+
+def no_llm_option() -> Any:
+    """Return a Typer Option for --no-llm."""
+    return typer.Option(
+        False,
+        "--no-llm",
+        help="Skip calling the LLM backend. Use mock responses. Implies --dry-run.",
     )
 
 
 def verbose_option() -> Any:
     """Return a Typer Option for --verbose / -v."""
     return typer.Option(
-        ...,
+        False,
         "--verbose",
         "-v",
         help="Show extra debug output.",
@@ -61,7 +70,7 @@ def verbose_option() -> Any:
 def debug_option() -> Any:
     """Return a Typer Option for --debug / -d (shows raw prompts and responses)."""
     return typer.Option(
-        ...,
+        False,
         "--debug",
         "-d",
         help="Show raw prompts and LLM responses.",
@@ -74,11 +83,17 @@ def resolve_provider(
     model: Optional[str] = None,
     debug: bool = False,
     verbose: bool = False,
+    no_llm: bool = False,
 ):
     """Instantiate the named provider, with validation and helpful error on unknown name."""
     if providers is None:
         from .providers import PROVIDERS
         providers = PROVIDERS
+
+    if no_llm or provider_name == "mock":
+        from .testing import MockProvider
+        return MockProvider()
+
     if debug:
         setup_logging(level=logging.DEBUG)
     elif verbose:
