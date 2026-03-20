@@ -19,9 +19,13 @@ import argparse
 import stat
 from pathlib import Path
 
-PRE_COMMIT_HOOK = """\
+# Current hook version
+HOOK_VERSION = "1.0.0"
+
+PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
 # Pre-commit checks — installed by local-first-common/install_hooks.py
+# Version: {HOOK_VERSION}
 # Runs ruff, pytest, and staged-file security scan before every commit.
 # To bypass (emergencies only): git commit --no-verify
 
@@ -60,9 +64,10 @@ fi
 exit 0
 """
 
-PRE_PUSH_HOOK = """\
+PRE_PUSH_HOOK = f"""\
 #!/bin/sh
 # Pre-push checks — installed by local-first-common/install_hooks.py
+# Version: {HOOK_VERSION}
 # Runs gitleaks against committed history as a final backstop.
 # To bypass (emergencies only): git push --no-verify
 
@@ -107,8 +112,8 @@ def install_hook(repo: Path, hook_name: str, script: str, marker: str) -> bool:
 
     if hook_path.exists():
         content = hook_path.read_text()
-        if marker in content:
-            print(f"  ✓ {repo.name}/{hook_name}: already installed")
+        if marker in content and f"Version: {HOOK_VERSION}" in content:
+            print(f"  ✓ {repo.name}/{hook_name}: already installed (v{HOOK_VERSION})")
             return True
         else:
             backup = hook_path.with_suffix(".pre-security-backup")
@@ -117,7 +122,7 @@ def install_hook(repo: Path, hook_name: str, script: str, marker: str) -> bool:
 
     hook_path.write_text(script)
     hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    print(f"  ✓ {repo.name}/{hook_name}: installed")
+    print(f"  ✓ {repo.name}/{hook_name}: installed (v{HOOK_VERSION})")
     return True
 
 

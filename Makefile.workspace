@@ -2,7 +2,7 @@
 
 REPOS = $(shell ls -d */ | sed 's/local-ai-tool-template\///' | grep -v 'local-ai-tool-template')
 
-.PHONY: list test sync check fix status verify-tools pre-commit push check-pushed help
+.PHONY: list test sync check fix status verify-tools tool-help verify-hooks pre-commit push check-pushed help
 
 help:
 	@echo "Usage:"
@@ -14,6 +14,8 @@ help:
 	@echo "  make status  - Show which repositories have uncommitted changes"
 	@echo "  make check-pushed - Show which repositories have unpushed commits"
 	@echo "  make verify-tools - Check that all tools follow the standardized structure"
+	@echo "  make tool-help - Show CLI help/parameters for all tools"
+	@echo "  make verify-hooks - Check if git hooks are installed and up-to-date"
 	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make push    - Push all repositories to their remotes"
 
@@ -109,6 +111,41 @@ verify-tools:
 			if [ "$$ERRORS" -eq 0 ]; then \
 				echo "  ✓ Structure looks good"; \
 			fi; \
+			echo ""; \
+		fi \
+	done
+
+tool-help:
+	@for repo in $(REPOS); do \
+		case "$$repo" in \
+			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
+		esac; \
+		MAIN_FILE=""; \
+		if [ -f "$$repo/src/main.py" ]; then MAIN_FILE="src/main.py"; \
+		elif [ -f "$$repo/main.py" ]; then MAIN_FILE="main.py"; fi; \
+		if [ -n "$$MAIN_FILE" ]; then \
+			echo "--- Help: $$repo ---"; \
+			(cd $$repo && uv run python $$MAIN_FILE --help); \
+			echo ""; \
+		fi \
+	done
+
+verify-hooks:
+	@HOOK_VERSION=$$(grep "HOOK_VERSION =" local-first-common/install_hooks.py | cut -d'"' -f2); \
+	for repo in $(REPOS); do \
+		if [ -d "$$repo/.git" ]; then \
+			echo "--- Checking hooks: $$repo ---"; \
+			for hook in pre-commit pre-push; do \
+				if [ -f "$$repo/.git/hooks/$$hook" ]; then \
+					if grep -q "Version: $$HOOK_VERSION" "$$repo/.git/hooks/$$hook"; then \
+						echo "  ✓ $$hook is up to date (v$$HOOK_VERSION)"; \
+					else \
+						echo "  ✗ $$hook is OUTDATED or modified"; \
+					fi; \
+				else \
+					echo "  ✗ $$hook is MISSING"; \
+				fi; \
+			done; \
 			echo ""; \
 		fi \
 	done
