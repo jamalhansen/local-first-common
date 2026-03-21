@@ -2,7 +2,18 @@
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
-.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help
+.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help use-local use-github source-status
+
+use-local:
+	@python3 local-first-common/scripts/toggle_source.py local
+	@$(MAKE) sync --no-print-directory
+
+use-github:
+	@python3 local-first-common/scripts/toggle_source.py github
+	@$(MAKE) sync --no-print-directory
+
+source-status:
+	@python3 local-first-common/scripts/toggle_source.py status
 
 help:
 	@echo "Usage:"
@@ -22,6 +33,9 @@ help:
 	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
 	@echo "  make push    - Push all repositories to their remotes (prompts for confirmation)"
+	@echo "  make use-local     - Switch all repos to use local-first-common from ../local-first-common (dev mode)"
+	@echo "  make use-github    - Switch all repos back to GitHub source (required before committing/pushing)"
+	@echo "  make source-status - Show current local-first-common source for each repo"
 
 list:
 	@echo "Local-first AI tools:"
