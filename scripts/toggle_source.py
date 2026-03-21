@@ -8,6 +8,7 @@ Usage:
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,7 +23,17 @@ LOCAL_PATH_RE = re.compile(
 )
 
 LOCAL_VALUE = 'local-first-common = {path = "../local-first-common", editable = true}'
-GITHUB_VALUE = 'local-first-common = { git = "https://github.com/jamalhansen/local-first-common.git", branch = "main" }'
+
+# When restoring the git source we preserve the original rev/branch key so
+# round-tripping doesn't produce a noisy diff.  We stash the original value
+# per-repo while switching to local and restore it on the way back.
+_GITHUB_VALUE_DEFAULT = 'local-first-common = { git = "https://github.com/jamalhansen/local-first-common.git", branch = "main" }'
+
+
+def _original_git_line(text: str) -> str:
+    """Return the exact git-source line from text, or a sensible default."""
+    m = GIT_URL_RE.search(text)
+    return m.group(0) if m else _GITHUB_VALUE_DEFAULT
 
 SKIP_REPOS = {"local-first-common", "local-ai-tool-template", "claude-skills"}
 
@@ -42,6 +53,26 @@ def get_source(text: str) -> str:
     if LOCAL_PATH_RE.search(text):
         return "local"
     return "none"
+
+
+def _git_head_line(repo: Path) -> str:
+    """Return the local-first-common source line from git HEAD's pyproject.toml.
+
+    This is the canonical version to restore when switching back to github —
+    it preserves the exact original formatting (rev= vs branch=, spacing, etc.)
+    regardless of what the working copy currently contains.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "show", "HEAD:pyproject.toml"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return _original_git_line(result.stdout)
+    except subprocess.CalledProcessError:
+        return _GITHUB_VALUE_DEFAULT
 
 
 def switch_to_local(workspace: Path) -> None:
@@ -80,7 +111,9 @@ def switch_to_github(workspace: Path) -> None:
         if source == "github":
             print(f"  - already github  {repo.name}")
         elif source == "local":
-            updated = LOCAL_PATH_RE.sub(GITHUB_VALUE, text)
+            # Restore from git HEAD to preserve the exact original formatting
+            restore_line = _git_head_line(repo)
+            updated = LOCAL_PATH_RE.sub(restore_line, text)
             toml.write_text(updated)
             print(f"  ✓ switched        {repo.name}")
             switched += 1
