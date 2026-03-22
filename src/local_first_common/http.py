@@ -31,5 +31,4 @@ def fetch_url(url: str, timeout: int = 15, headers: dict | None = None) -> str:
         response.raise_for_status()
         return response.text
     except requests.exceptions.RequestException as e:
-        logger.warning("Failed to fetch URL %s: %s", url, e)
         raise RuntimeError(f"Failed to fetch URL: {e}") from e
