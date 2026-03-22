@@ -23,6 +23,8 @@ class GroqProvider(BaseProvider):
             raise RuntimeError(
                 "GROQ_API_KEY is required. Set it as an environment variable."
             )
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
 
     def _build_payload(self, system: str, user: str, template: str, is_json: bool) -> Dict[str, Any]:
         actual_system = system
@@ -57,7 +59,11 @@ class GroqProvider(BaseProvider):
             with httpx.Client(timeout=120.0) as client:
                 response = client.post(self._api_url, json=payload, headers=headers)
                 response.raise_for_status()
-                content = response.json()["choices"][0]["message"]["content"]
+                data = response.json()
+                usage = data.get("usage", {})
+                self.input_tokens += usage.get("prompt_tokens", 0)
+                self.output_tokens += usage.get("completion_tokens", 0)
+                content = data["choices"][0]["message"]["content"]
         except httpx.HTTPStatusError as e:
             err = str(e)
             if "model" in err.lower():
@@ -91,6 +97,9 @@ class GroqProvider(BaseProvider):
                 response = await client.post(self._api_url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
+                usage = data.get("usage", {})
+                self.input_tokens += usage.get("prompt_tokens", 0)
+                self.output_tokens += usage.get("completion_tokens", 0)
                 content = data["choices"][0]["message"]["content"]
         except httpx.HTTPStatusError as e:
             err = str(e)

@@ -27,6 +27,8 @@ class AnthropicProvider(BaseProvider):
             raise RuntimeError(
                 "ANTHROPIC_API_KEY is required. Set it as an environment variable."
             )
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
 
     def _build_actual_system(self, system: str, template: str) -> str:
         actual_system = system
@@ -74,6 +76,8 @@ class AnthropicProvider(BaseProvider):
                 system=actual_system,
                 messages=messages,
             )
+            self.input_tokens += message.usage.input_tokens
+            self.output_tokens += message.usage.output_tokens
             content = message.content[0].text
         except Exception as e:
             err = str(e)
@@ -114,6 +118,8 @@ class AnthropicProvider(BaseProvider):
                 system=actual_system,
                 messages=messages,
             )
+            self.input_tokens += message.usage.input_tokens
+            self.output_tokens += message.usage.output_tokens
             content = message.content[0].text
         except Exception as e:
             err = str(e)

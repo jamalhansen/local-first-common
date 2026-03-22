@@ -200,6 +200,8 @@ class _TimedRun:
         self.source_location = source_location
         self.db_path = db_path
         self.item_count: int | None = None
+        self.input_tokens: int | None = None
+        self.output_tokens: int | None = None
         self._start: float = 0.0
 
     def __enter__(self) -> "_TimedRun":
@@ -214,6 +216,8 @@ class _TimedRun:
                 self.model,
                 source_location=self.source_location,
                 item_count=self.item_count,
+                input_tokens=self.input_tokens,
+                output_tokens=self.output_tokens,
                 duration_seconds=duration,
                 success=exc_type is None,
                 error_message=str(exc_val) if exc_val else None,
