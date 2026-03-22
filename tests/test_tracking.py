@@ -3,30 +3,38 @@
 import time
 import warnings
 from pathlib import Path
+from unittest.mock import patch
 
 import duckdb
 import pytest
 
-from local_first_common.tracking import log_run, timed_run, _resolve_db_path
+from local_first_common.tracking import (
+    Tool,
+    _resolve_db_path,
+    log_run,
+    register_tool,
+    timed_run,
+    tracked_fetch,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _row_count(db_path: Path) -> int:
+def _row_count(db_path: Path, table: str = "processing_log") -> int:
     conn = duckdb.connect(str(db_path))
     try:
-        result = conn.execute("SELECT COUNT(*) FROM processing_log").fetchone()
+        result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
         return result[0]
     finally:
         conn.close()
 
 
-def _last_row(db_path: Path) -> dict:
+def _last_row(db_path: Path, table: str = "processing_log") -> dict:
     conn = duckdb.connect(str(db_path))
     try:
-        cur = conn.execute("SELECT * FROM processing_log ORDER BY id DESC LIMIT 1")
+        cur = conn.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 1")
         cols = [d[0] for d in cur.description]
         row = cur.fetchone()
         return dict(zip(cols, row))
@@ -132,7 +140,6 @@ class TestLogRun:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             log_run("tool", "model", db_path="/nonexistent/path/db.duckdb")
-        # Should have emitted a warning
         assert any("log_run failed" in str(w.message) for w in caught)
 
     def test_created_at_is_set(self, tmp_path):
@@ -191,3 +198,156 @@ class TestTimedRun:
             pass
         row = _last_row(db)
         assert row["duration_seconds"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# register_tool
+# ---------------------------------------------------------------------------
+
+class TestRegisterTool:
+    def test_returns_tool_with_id(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("my-tool", db_path=db)
+        assert isinstance(tool, Tool)
+        assert tool.name == "my-tool"
+        assert tool.id is not None
+        assert isinstance(tool.id, int)
+
+    def test_idempotent_same_id(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        t1 = register_tool("my-tool", db_path=db)
+        t2 = register_tool("my-tool", db_path=db)
+        assert t1.id == t2.id
+
+    def test_different_tools_different_ids(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        t1 = register_tool("tool-a", db_path=db)
+        t2 = register_tool("tool-b", db_path=db)
+        assert t1.id != t2.id
+
+    def test_returns_tool_with_none_id_on_bad_path(self):
+        tool = register_tool("my-tool", db_path="/nonexistent/bad/path.duckdb")
+        assert tool.name == "my-tool"
+        assert tool.id is None
+
+    def test_tool_row_in_db(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        register_tool("content-discovery-agent", db_path=db)
+        row = _last_row(db, table="tools")
+        assert row["name"] == "content-discovery-agent"
+        assert row["first_seen"] is not None
+
+
+# ---------------------------------------------------------------------------
+# tracked_fetch context manager
+# ---------------------------------------------------------------------------
+
+class TestTrackedFetch:
+    def test_successful_fetch_logged(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with patch("local_first_common.http.fetch_url", return_value="<html>hello</html>"):
+            with tracked_fetch(tool, "https://example.com/article",
+                               source_url="https://bsky.app/post/123",
+                               source_platform="bluesky",
+                               db_path=db) as fetch:
+                fetch.title = "Example Article"
+
+        assert fetch.html == "<html>hello</html>"
+        assert fetch.success is True
+
+        row = _last_row(db, table="fetch_log")
+        assert row["tool_id"] == tool.id
+        assert row["url"] == "https://example.com/article"
+        assert row["domain"] == "example.com"
+        assert row["source_url"] == "https://bsky.app/post/123"
+        assert row["source_platform"] == "bluesky"
+        assert row["success"] is True
+        assert row["http_status"] is None
+        assert row["title"] == "Example Article"
+        assert row["duration_ms"] >= 0
+
+    def test_http_error_logged(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        from local_first_common.http import FetchError
+        with patch("local_first_common.http.fetch_url",
+                   side_effect=FetchError("403 Forbidden", status_code=403)):
+            with tracked_fetch(tool, "https://example.com/blocked",
+                               source_platform="mastodon",
+                               db_path=db) as fetch:
+                pass  # fetch.html is None
+
+        assert fetch.html is None
+        assert fetch.success is False
+        assert fetch.http_status == 403
+
+        row = _last_row(db, table="fetch_log")
+        assert row["success"] is False
+        assert row["http_status"] == 403
+        assert "403" in row["error_message"]
+
+    def test_network_error_logged(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        from local_first_common.http import FetchError
+        with patch("local_first_common.http.fetch_url",
+                   side_effect=FetchError("Read timed out", status_code=None)):
+            with tracked_fetch(tool, "https://slow.example.com/", db_path=db):
+                pass
+
+        row = _last_row(db, table="fetch_log")
+        assert row["success"] is False
+        assert row["http_status"] is None
+        assert "timed out" in row["error_message"]
+
+    def test_skips_logging_when_tool_id_none(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        # Ensure schema exists so _row_count doesn't fail
+        register_tool("seed", db_path=db)
+        tool = Tool(name="unregistered", id=None)
+
+        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
+            with tracked_fetch(tool, "https://example.com/", db_path=db):
+                pass
+
+        # Only the seed tool row; no fetch_log rows
+        assert _row_count(db, table="fetch_log") == 0
+
+    def test_does_not_suppress_body_exceptions(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
+            with pytest.raises(ValueError, match="caller error"):
+                with tracked_fetch(tool, "https://example.com/", db_path=db):
+                    raise ValueError("caller error")
+
+    def test_duration_ms_recorded(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
+            with tracked_fetch(tool, "https://example.com/", db_path=db):
+                pass
+
+        row = _last_row(db, table="fetch_log")
+        assert row["duration_ms"] >= 0
+
+    def test_source_url_and_platform_stored(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
+            with tracked_fetch(tool, "https://example.com/",
+                               source_url="https://mastodon.social/@user/post/999",
+                               source_platform="mastodon",
+                               db_path=db):
+                pass
+
+        row = _last_row(db, table="fetch_log")
+        assert row["source_url"] == "https://mastodon.social/@user/post/999"
+        assert row["source_platform"] == "mastodon"
