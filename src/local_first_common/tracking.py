@@ -88,6 +88,9 @@ def log_run(
     db_path: str | Path | None = None,
 ) -> None:
     """Insert one processing-run row.  Never raises — failures emit a warning."""
+    # Coerce model to str or None — guards against MagicMock in tests
+    if model is not None and not isinstance(model, str):
+        model = str(model)
     try:
         import duckdb  # lazy import so tools without duckdb still load
 
@@ -147,14 +150,17 @@ class _TimedRun:
 
     def __exit__(self, exc_type, exc_val, _tb):
         duration = time.monotonic() - self._start
-        log_run(
-            self.tool_name,
-            self.model,
-            source_location=self.source_location,
-            item_count=self.item_count,
-            duration_seconds=duration,
-            success=exc_type is None,
-            error_message=str(exc_val) if exc_val else None,
-            db_path=self.db_path,
-        )
-        return False  # never suppress exceptions
+        try:
+            log_run(
+                self.tool_name,
+                self.model,
+                source_location=self.source_location,
+                item_count=self.item_count,
+                duration_seconds=duration,
+                success=exc_type is None,
+                error_message=str(exc_val) if exc_val else None,
+                db_path=self.db_path,
+            )
+        except Exception:  # noqa: BLE001
+            pass  # log_run warnings-as-errors must not escape the context manager
+        return False  # never suppress exceptions from the with-block body
