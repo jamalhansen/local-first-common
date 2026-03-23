@@ -39,8 +39,10 @@ check-standards:
 			case "$$repo" in \
 				"local-first-common/"|"local-first-mcp/") continue ;; \
 			esac; \
-			if ! grep -r "timed_run" "$$repo/src/" > /dev/null; then \
-				echo "  [WARN] $$repo might be missing timed_run tracking."; \
+			if grep -Er "PROVIDERS|pydantic_ai|BaseProvider|OllamaProvider" "$$repo/src/" > /dev/null; then \
+				if ! grep -r "timed_run" "$$repo/src/" > /dev/null; then \
+					echo "  [WARN] $$repo uses LLMs but might be missing timed_run tracking."; \
+				fi \
 			fi \
 		fi \
 	done
