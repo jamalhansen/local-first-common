@@ -21,6 +21,9 @@ def isolate_tracking_db(tmp_path_factory):
     os.environ.pop("LOCAL_FIRST_TRACKING_DB", None)
 
 
+_AUTO = object()
+
+
 class MockProvider(BaseProvider):
     """A deterministic provider for use in tests. Records calls and returns preset responses."""
 
@@ -30,7 +33,7 @@ class MockProvider(BaseProvider):
 
     def __init__(
         self,
-        response: str = "Default mock response",
+        response: Any = _AUTO,
         model: Optional[str] = None,
         raise_error: Optional[str] = None,
     ):
@@ -51,8 +54,10 @@ class MockProvider(BaseProvider):
             raise RuntimeError(self._raise_error)
         
         response = self._response
-        if response == "Default mock response" and response_model:
+        if response is _AUTO and response_model:
             response = self._get_example_json(response_model)
+        elif response is _AUTO:
+            response = "Default mock response"
 
         if response_model:
             return self._parse_json_response(response, response_model)

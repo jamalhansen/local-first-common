@@ -2,7 +2,7 @@
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
-.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help use-local use-github source-status
+.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help use-local use-github source-status upgrade-locks check-standards
 
 use-local:
 	@python3 local-first-common/scripts/toggle_source.py local
@@ -14,6 +14,37 @@ use-github:
 
 source-status:
 	@python3 local-first-common/scripts/toggle_source.py status
+
+upgrade-locks:
+	@echo "Upgrading local-first-common in all dependent repos..."
+	@for repo in $(REPOS); do \
+		if [ -f "$$repo/pyproject.toml" ] && grep -q "local-first-common" "$$repo/pyproject.toml"; then \
+			echo "  → $$repo"; \
+			(cd $$repo && uv lock --upgrade-package local-first-common > /dev/null 2>&1); \
+		fi \
+	done
+	@echo "Done. Run 'make sync' next."
+
+check-standards:
+	@echo "Checking for architectural violations..."
+	@# Check: persona-counsel must NOT use resolve_provider
+	@if [ -d "persona-counsel" ] && grep -r "resolve_provider" persona-counsel/src/ 2>/dev/null; then \
+		echo "  [FAIL] persona-counsel is using resolve_provider! (Must use build_model)"; \
+		exit 1; \
+	fi
+	@# Check: timed_run usage (basic verify)
+	@echo "Verifying timed_run coverage..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/src" ]; then \
+			case "$$repo" in \
+				"local-first-common/"|"local-first-mcp/") continue ;; \
+			esac; \
+			if ! grep -r "timed_run" "$$repo/src/" > /dev/null; then \
+				echo "  [WARN] $$repo might be missing timed_run tracking."; \
+			fi \
+		fi \
+	done
+	@echo "Standards check complete."
 
 help:
 	@echo "Usage:"
@@ -36,6 +67,8 @@ help:
 	@echo "  make use-local     - Switch all repos to use local-first-common from ../local-first-common (dev mode)"
 	@echo "  make use-github    - Switch all repos back to GitHub source (required before committing/pushing)"
 	@echo "  make source-status - Show current local-first-common source for each repo"
+	@echo "  make upgrade-locks - Upgrade local-first-common in all uv.lock files"
+	@echo "  make check-standards - Verify architectural rules across all tools"
 
 list:
 	@echo "Local-first AI tools:"

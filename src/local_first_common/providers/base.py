@@ -39,7 +39,10 @@ class BaseProvider(ABC):
         images: Optional[list[str]] = None,
         max_retries: int = 1,
     ) -> Union[str, Dict[str, Any]]:
-        """Call the LLM with optional retry on JSON/validation failure."""
+        """Call the LLM with optional retry on JSON/validation failure.
+        
+        max_retries=1 means 2 total attempts (initial + 1 retry).
+        """
         current_user = user
         
         for attempt in range(max_retries + 1):
@@ -64,7 +67,10 @@ class BaseProvider(ABC):
         images: Optional[list[str]] = None,
         max_retries: int = 1,
     ) -> Union[str, Dict[str, Any]]:
-        """Call the LLM with optional retry on JSON/validation failure (async)."""
+        """Call the LLM with optional retry on JSON/validation failure (async).
+        
+        max_retries=1 means 2 total attempts (initial + 1 retry).
+        """
         current_user = user
         
         for attempt in range(max_retries + 1):
@@ -113,7 +119,7 @@ class BaseProvider(ABC):
         if not isinstance(data, dict):
             return data
         for field_name, field_info in model.model_fields.items():
-            is_list = "List" in str(field_info.annotation) or "list" in str(field_info.annotation)
+            is_list = get_origin(field_info.annotation) is list
             if is_list and field_name in data and isinstance(data[field_name], dict):
                 data[field_name] = [data[field_name]]
         return data
