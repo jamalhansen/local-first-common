@@ -22,7 +22,7 @@ class GeminiProvider(BaseProvider):
                 "GEMINI_API_KEY is required. Set it as an environment variable."
             )
 
-    def complete(
+    def _complete(
         self,
         system: str,
         user: str,
@@ -72,7 +72,7 @@ class GeminiProvider(BaseProvider):
         self._debug_print_response(result)
         return result
 
-    async def acomplete(
+    async def _acomplete(
         self,
         system: str,
         user: str,

@@ -50,7 +50,7 @@ class AnthropicProvider(BaseProvider):
                 })
         return [{"role": "user", "content": content}]
 
-    def complete(
+    def _complete(
         self,
         system: str,
         user: str,
@@ -92,7 +92,7 @@ class AnthropicProvider(BaseProvider):
         self._debug_print_response(result)
         return result
 
-    async def acomplete(
+    async def _acomplete(
         self,
         system: str,
         user: str,

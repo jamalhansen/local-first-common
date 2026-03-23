@@ -42,7 +42,7 @@ class GroqProvider(BaseProvider):
             payload["response_format"] = {"type": "json_object"}
         return payload
 
-    def complete(
+    def _complete(
         self,
         system: str,
         user: str,
@@ -79,7 +79,7 @@ class GroqProvider(BaseProvider):
         self._debug_print_response(result)
         return result
 
-    async def acomplete(
+    async def _acomplete(
         self,
         system: str,
         user: str,

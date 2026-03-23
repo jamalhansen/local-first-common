@@ -77,6 +77,13 @@ def debug_option() -> Any:
     )
 
 
+def resolve_dry_run(dry_run: bool, no_llm: bool) -> bool:
+    """Standard rule: --no-llm always implies --dry-run."""
+    if no_llm:
+        return True
+    return dry_run
+
+
 def resolve_provider(
     providers: dict | None = None,
     provider_name: str = "ollama",

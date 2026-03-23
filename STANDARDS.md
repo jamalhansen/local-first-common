@@ -111,6 +111,7 @@ When building a new tool, use the helpers in `local_first_common.cli`:
 from local_first_common.cli import (
     dry_run_option,
     no_llm_option,
+    resolve_dry_run,
     resolve_provider,
 )
 
@@ -120,12 +121,17 @@ def run(
     no_llm: Annotated[bool, no_llm_option()] = False,
     # ... other options
 ):
-    if no_llm:
-        dry_run = True
+    # Standard rule: --no-llm always implies --dry-run
+    dry_run = resolve_dry_run(dry_run, no_llm)
         
     llm = resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
     
     # ... logic ...
+    
+    # llm.complete() automatically handles JSON parsing, retries on 
+    # validation failure (if response_model is provided), and provides
+    # mock data in --no-llm mode.
+    result = llm.complete(system, user, response_model=MySchema)
     
     if dry_run:
         print(result)

@@ -14,7 +14,7 @@ class BaseProvider(ABC):
         self.debug = debug
 
     @abstractmethod
-    def complete(
+    def _complete(
         self,
         system: str,
         user: str,
@@ -23,13 +23,63 @@ class BaseProvider(ABC):
     ) -> Union[str, Dict[str, Any]]: ...
 
     @abstractmethod
-    async def acomplete(
+    async def _acomplete(
         self,
         system: str,
         user: str,
         response_model: Optional[Any] = None,
         images: Optional[list[str]] = None,
     ) -> Union[str, Dict[str, Any]]: ...
+
+    def complete(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
+        max_retries: int = 1,
+    ) -> Union[str, Dict[str, Any]]:
+        """Call the LLM with optional retry on JSON/validation failure."""
+        current_user = user
+        
+        for attempt in range(max_retries + 1):
+            try:
+                result = self._complete(system, current_user, response_model=response_model, images=images)
+                
+                if response_model and hasattr(response_model, "model_validate"):
+                    response_model.model_validate(result)
+                
+                return result
+            except Exception as e:
+                if attempt < max_retries:
+                    current_user = user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
+                    continue
+                raise
+
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any] = None,
+        images: Optional[list[str]] = None,
+        max_retries: int = 1,
+    ) -> Union[str, Dict[str, Any]]:
+        """Call the LLM with optional retry on JSON/validation failure (async)."""
+        current_user = user
+        
+        for attempt in range(max_retries + 1):
+            try:
+                result = await self._acomplete(system, current_user, response_model=response_model, images=images)
+                
+                if response_model and hasattr(response_model, "model_validate"):
+                    response_model.model_validate(result)
+                
+                return result
+            except Exception as e:
+                if attempt < max_retries:
+                    current_user = user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
+                    continue
+                raise
 
     def _get_example_json(self, model: Any) -> str:
         if not model or not hasattr(model, "model_fields"):

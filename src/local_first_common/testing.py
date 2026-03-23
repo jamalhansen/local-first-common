@@ -39,7 +39,7 @@ class MockProvider(BaseProvider):
         self._raise_error = raise_error
         self.calls: list[tuple[str, str]] = []
 
-    def complete(
+    def _complete(
         self,
         system: str,
         user: str,
@@ -49,15 +49,20 @@ class MockProvider(BaseProvider):
         self.calls.append((system, user))
         if self._raise_error:
             raise RuntimeError(self._raise_error)
-        if response_model:
-            return self._parse_json_response(self._response, response_model)
-        return self._response
+        
+        response = self._response
+        if response == "Default mock response" and response_model:
+            response = self._get_example_json(response_model)
 
-    async def acomplete(
+        if response_model:
+            return self._parse_json_response(response, response_model)
+        return response
+
+    async def _acomplete(
         self,
         system: str,
         user: str,
         response_model: Optional[Any] = None,
         images: Optional[list[str]] = None,
     ) -> Union[str, Dict[str, Any]]:
-        return self.complete(system, user, response_model, images=images)
+        return self._complete(system, user, response_model, images=images)

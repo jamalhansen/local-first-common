@@ -106,7 +106,7 @@ class OllamaProvider(BaseProvider):
             payload["images"] = images
         return payload
 
-    def complete(
+    def _complete(
         self,
         system: str,
         user: str,
@@ -140,7 +140,7 @@ class OllamaProvider(BaseProvider):
         self._debug_print_response(result)
         return result
 
-    async def acomplete(
+    async def _acomplete(
         self,
         system: str,
         user: str,
