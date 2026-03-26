@@ -2,7 +2,10 @@
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
-.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats pre-commit push check-pushed help use-local use-github source-status upgrade-locks check-standards
+.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats usage pre-commit push check-pushed help use-local use-github source-status upgrade-locks check-standards
+
+usage:
+	@uv run pipeline-analysis/usage_stats.py
 
 use-local:
 	@python3 local-first-common/scripts/toggle_source.py local
