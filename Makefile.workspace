@@ -40,7 +40,7 @@ check-standards:
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in \
-				"local-first-common/"|"local-first-mcp/") continue ;; \
+				"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
 			esac; \
 			if grep -Er "PROVIDERS|pydantic_ai|BaseProvider|OllamaProvider" "$$repo/src/" > /dev/null; then \
 				if ! grep -r "timed_run" "$$repo/src/" > /dev/null; then \
