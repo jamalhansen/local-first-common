@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS processing_log (
     duration_seconds DOUBLE,
     success          BOOLEAN NOT NULL DEFAULT TRUE,
     error_message    VARCHAR,
+    xml_fallbacks    INTEGER,
+    parse_errors     INTEGER,
     created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -62,8 +64,8 @@ CREATE TABLE IF NOT EXISTS processing_log (
 _INSERT = """
 INSERT INTO processing_log
     (tool_name, model, source_location, item_count, input_tokens, output_tokens,
-     duration_seconds, success, error_message)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+     duration_seconds, success, error_message, xml_fallbacks, parse_errors)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 # ── tools + fetch_log (URL fetches) ─────────────────────────────────────────
@@ -124,6 +126,9 @@ def _resolve_db_path(override: str | Path | None = None) -> Path:
 def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_SEQUENCE)
     conn.execute(_CREATE_TABLE)
+    # Migrate existing DBs that predate the xml_fallbacks/parse_errors columns
+    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS xml_fallbacks INTEGER;")
+    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS parse_errors INTEGER;")
     conn.execute(_CREATE_TOOLS_SEQUENCE)
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
@@ -143,6 +148,8 @@ def log_run(
     duration_seconds: float | None = None,
     success: bool = True,
     error_message: str | None = None,
+    xml_fallbacks: int | None = None,
+    parse_errors: int | None = None,
     db_path: str | Path | None = None,
 ) -> None:
     """Insert one processing-run row.  Never raises — failures emit a warning."""
@@ -168,6 +175,8 @@ def log_run(
                     duration_seconds,
                     success,
                     error_message,
+                    xml_fallbacks,
+                    parse_errors,
                 ],
             )
         finally:
@@ -202,6 +211,8 @@ class _TimedRun:
         self.item_count: int | None = None
         self.input_tokens: int | None = None
         self.output_tokens: int | None = None
+        self.xml_fallbacks: int | None = None
+        self.parse_errors: int | None = None
         self._start: float = 0.0
 
     def __enter__(self) -> "_TimedRun":
@@ -221,6 +232,8 @@ class _TimedRun:
                 duration_seconds=duration,
                 success=exc_type is None,
                 error_message=str(exc_val) if exc_val else None,
+                xml_fallbacks=self.xml_fallbacks,
+                parse_errors=self.parse_errors,
                 db_path=self.db_path,
             )
         except Exception:  # noqa: BLE001

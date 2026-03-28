@@ -122,6 +122,20 @@ class TestLogRun:
         assert row["input_tokens"] is None
         assert row["output_tokens"] is None
         assert row["duration_seconds"] is None
+        assert row["xml_fallbacks"] is None
+        assert row["parse_errors"] is None
+
+    def test_xml_fallbacks_stored(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        log_run("tool", "model", xml_fallbacks=3, db_path=db)
+        row = _last_row(db)
+        assert row["xml_fallbacks"] == 3
+
+    def test_parse_errors_stored(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        log_run("tool", "model", parse_errors=2, db_path=db)
+        row = _last_row(db)
+        assert row["parse_errors"] == 2
 
     def test_item_count_stored(self, tmp_path):
         db = tmp_path / "test.duckdb"
@@ -176,6 +190,27 @@ class TestTimedRun:
             pass
         row = _last_row(db)
         assert row["item_count"] is None
+
+    def test_xml_fallbacks_via_context_manager(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with timed_run("tool", "model", db_path=db) as run:
+            run.xml_fallbacks = 5
+        row = _last_row(db)
+        assert row["xml_fallbacks"] == 5
+
+    def test_parse_errors_via_context_manager(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with timed_run("tool", "model", db_path=db) as run:
+            run.parse_errors = 1
+        row = _last_row(db)
+        assert row["parse_errors"] == 1
+
+    def test_xml_fallbacks_defaults_to_none(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with timed_run("tool", "model", db_path=db):
+            pass
+        row = _last_row(db)
+        assert row["xml_fallbacks"] is None
 
     def test_logs_on_exception(self, tmp_path):
         db = tmp_path / "test.duckdb"

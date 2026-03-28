@@ -141,6 +141,110 @@ def run(
 
 `MockProvider` for deterministic unit testing. Now supports `acomplete` and `images`.
 
+---
+
+### `local_first_common.llm`
+
+LLM response parsing utilities.
+
+```python
+from local_first_common.llm import parse_json_response, try_xml_parse
+
+# Strip ```json fences and parse
+data = parse_json_response(raw)
+
+# XML fallback for local models that garble JSON
+xml = try_xml_parse(raw, ["score", "summary", "language", "tags"])
+# Returns dict if all fields found, None if any missing
+```
+
+---
+
+### `local_first_common.scoring`
+
+Base class for LLM-based content scorers. Handles JSON parsing with XML fallback, provider error catching, and parse failure counting.
+
+```python
+from local_first_common.scoring import BaseScorer, ScoredItem
+
+class MyScorer(BaseScorer):
+    system_prompt = "Return JSON with score, tags, summary, language."
+
+scorer = MyScorer()
+result = scorer.score(provider, user_message)
+# result: ScoredItem(score=0.85, tags=["ai"], summary="...", language="en") | None
+
+# Counters for tracking (wire to timed_run):
+scorer.xml_fallback_count   # times XML fallback was used
+scorer.parse_error_count    # times both JSON and XML failed
+```
+
+---
+
+### `local_first_common.readwise`
+
+Readwise Reader API integration.
+
+```python
+from local_first_common.readwise import save_to_readwise
+
+ok = save_to_readwise(
+    token,
+    "https://example.com/article",
+    title="Article Title",
+    summary="One sentence summary.",
+    tags=["ai", "python"],
+    published_date="2026-03-01",
+)
+```
+
+---
+
+### `local_first_common.models`
+
+Pydantic model for Obsidian frontmatter. Use for any tool that reads or writes structured vault notes.
+
+```python
+from local_first_common.models import ContentMetadata
+import frontmatter
+
+post = frontmatter.load(path)
+meta = ContentMetadata.from_metadata(post.metadata)
+
+meta.tags           # List[str] — bare "ai" string → ["ai"] automatically
+meta.category       # str — "[[Newsletter]]" or "uncategorized" (default)
+meta.category_name  # str — strips brackets: "Newsletter"
+meta.published_date # Optional[datetime] — "" coerced to None
+meta.status         # str — defaults to "draft"
+meta.title          # Optional[str] — accepts both "title" and "Title" frontmatter keys
+
+# Write back — omits None fields and the "uncategorized" default
+post.metadata = meta.to_metadata()
+frontmatter.dump(post, path)
+```
+
+**Category convention:** `Category` is a wikilink to an Obsidian template, e.g. `[[Newsletter]]`. Notes without a `Category` field parse fine and get `category = "uncategorized"` — query this to find notes that still need categorising.
+
+---
+
+### `local_first_common.tracking`
+
+DuckDB-backed run logging. Tracks every LLM call: tool, model, duration, item count, token usage, and parse quality counters.
+
+```python
+from local_first_common.tracking import register_tool, timed_run
+
+_TOOL = register_tool("my-tool")  # once at startup
+
+with timed_run("my-tool", provider.model, source_location=url) as run:
+    results = process_items(items)
+    run.item_count = len(results)
+    run.xml_fallbacks = scorer.xml_fallback_count or None
+    run.parse_errors = scorer.parse_error_count or None
+```
+
+DB: `~/sync/local-first/processing_log.duckdb` (override: `LOCAL_FIRST_TRACKING_DB`).
+
 ## Workspace Orchestration
 
 This repository contains a `Makefile.workspace` designed to manage the entire local-first AI toolkit from the workspace root. 

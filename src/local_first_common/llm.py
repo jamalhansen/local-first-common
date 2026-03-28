@@ -35,3 +35,29 @@ def parse_json_response(raw: str) -> dict[str, Any]:
     after fence stripping.
     """
     return json.loads(strip_json_fences(raw))
+
+
+def try_xml_parse(raw: str, fields: list[str]) -> dict[str, str] | None:
+    """Extract field values from XML-style tags in an LLM response.
+
+    Tries re.search for each tag in ``fields``.  Returns a dict mapping
+    field name → extracted text if ALL fields are found, or None if any
+    field is missing.  Values are stripped of leading/trailing whitespace.
+
+    Useful as a fallback when JSON parsing fails for local models that
+    struggle with strict JSON syntax under token-pressure.
+
+    Example::
+
+        raw = "<score>0.8</score><summary>Great post</summary>"
+        result = try_xml_parse(raw, ["score", "summary"])
+        # {"score": "0.8", "summary": "Great post"}
+    """
+    import re
+    result: dict[str, str] = {}
+    for field in fields:
+        match = re.search(rf"<{field}>(.*?)</{field}>", raw, re.DOTALL)
+        if not match:
+            return None
+        result[field] = match.group(1).strip()
+    return result
