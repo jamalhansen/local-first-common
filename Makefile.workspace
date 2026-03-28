@@ -2,7 +2,7 @@
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
-.PHONY: list test sync check fix status verify-tools tool-help verify-hooks coverage stats usage pre-commit push check-pushed help use-local use-github source-status upgrade-locks check-standards
+.PHONY: list test sync check fix status check-tools help-tools check-hooks show-coverage check-coverage stats usage pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -15,7 +15,7 @@ use-github:
 	@python3 local-first-common/scripts/toggle_source.py github
 	@$(MAKE) sync --no-print-directory
 
-source-status:
+show-sources:
 	@python3 local-first-common/scripts/toggle_source.py status
 
 upgrade-locks:
@@ -35,45 +35,103 @@ check-standards:
 		echo "  [FAIL] persona-counsel is using resolve_provider! (Must use build_model)"; \
 		exit 1; \
 	fi
-	@# Check: timed_run usage (basic verify)
-	@echo "Verifying timed_run coverage..."
+	@# Check: tool registration names must match repo names
+	@echo "Verifying tool registration names..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/src" ]; then \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
+			repo_name=$$(basename "$$repo" | tr '-' '_'); \
+			reg_name=$$(grep -r "register_tool(\"" "$$repo/src/" | head -1 | sed -E 's/.*register_tool\("([^"]+)".*/\1/'); \
+			if [ -n "$$reg_name" ] && [ "$$reg_name" != "$$(basename "$$repo")" ]; then \
+				echo "  [FAIL] $$repo registers as '$$reg_name' (expected '$$(basename "$$repo")')"; \
+			fi \
+		fi \
+	done
+	@# Check: register_tool must appear in exactly one file
+	@echo "Checking for duplicate register_tool calls..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/src" ]; then \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
+			count=$$(grep -rl "register_tool(" "$$repo/src/" 2>/dev/null | wc -l | tr -d ' '); \
+			if [ "$$count" -gt 1 ]; then \
+				echo "  [FAIL] $$repo has register_tool() in $$count files (should be 1):"; \
+				grep -rl "register_tool(" "$$repo/src/" | sed 's/^/    /'; \
+			fi \
+		fi \
+	done
+	@# Check: Typer anti-pattern (default value as first arg to typer.Option)
+	@echo "Checking for Typer anti-patterns..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/src" ]; then \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
+			if grep -Ern "typer\.Option\(os\.environ|typer\.Option\(\"[^-]|typer\.Option\('[^-]" "$$repo/src/" 2>/dev/null | grep -v "\.pyc" > /dev/null; then \
+				echo "  [FAIL] $$repo uses Typer anti-pattern (default value as first arg to typer.Option):"; \
+				grep -Ern "typer\.Option\(os\.environ|typer\.Option\(\"[^-]|typer\.Option\('[^-]" "$$repo/src/" 2>/dev/null | sed 's/^/    /'; \
+			fi \
+		fi \
+	done
+	@# Check: direct LLM library usage outside of local-first-common
+	@echo "Checking for direct LLM library imports..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/src" ]; then \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
+			if grep -Er "import anthropic|import openai|import google\.generativeai|import groq|import ollama|from anthropic|from openai|from google\.generativeai|from groq|from ollama" "$$repo/src/" > /dev/null; then \
+				echo "  [FAIL] $$repo imports LLM libraries directly (must use local-first-common providers)"; \
+			fi \
+		fi \
+	done
+	@# Check: pydantic-ai usage outside of persona-counsel
+	@echo "Checking for pydantic-ai usage..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/src" ]; then \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"persona-counsel/") continue ;; esac; \
+			if grep -r "pydantic_ai" "$$repo/src/" > /dev/null; then \
+				echo "  [FAIL] $$repo uses pydantic_ai (only persona-counsel is allowed)"; \
+			fi \
+		fi \
+	done
+	@# Check: timed_run usage (per-file: each file that calls LLM must wrap it)
+	@echo "Verifying timed_run coverage (per-file)..."
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in \
 				"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
 			esac; \
-			if grep -Er "PROVIDERS|pydantic_ai|BaseProvider|OllamaProvider" "$$repo/src/" > /dev/null; then \
-				if ! grep -r "timed_run" "$$repo/src/" > /dev/null; then \
-					echo "  [WARN] $$repo uses LLMs but might be missing timed_run tracking."; \
+			find "$$repo/src" -name "*.py" | while read pyfile; do \
+				if grep -qE "resolve_provider|PROVIDERS\[" "$$pyfile" 2>/dev/null; then \
+					if ! grep -q "timed_run" "$$pyfile"; then \
+						echo "  [WARN] $$pyfile calls LLM (resolve_provider/PROVIDERS) but is missing timed_run"; \
+					fi \
 				fi \
-			fi \
+			done; \
 		fi \
 	done
 	@echo "Standards check complete."
 
 help:
 	@echo "Usage:"
-	@echo "  make list    - List all tools in the workspace"
-	@echo "  make sync    - Run 'uv sync' in all repositories"
-	@echo "  make test    - Run 'uv run pytest' in all repositories"
-	@echo "  make coverage - Show test coverage for all repositories"
-	@echo "  make stats   - Show file length statistics and identify large files"
-	@echo "  make check   - Run 'uv run ruff check' in all repositories"
-	@echo "  make fix     - Run 'uv run ruff check --fix' in all repositories"
-	@echo "  make status  - Show which repositories have uncommitted changes"
-	@echo "  make uncommitted - Show a concise list of repos with uncommitted work"
-	@echo "  make check-pushed - Show which repositories have unpushed commits"
-	@echo "  make verify-tools - Check that all tools follow the standardized structure"
-	@echo "  make tool-help - Show CLI help/parameters for all tools"
-	@echo "  make verify-hooks - Check if git hooks are installed and up-to-date"
-	@echo "  make pre-commit - Run all pre-commit checks (ruff, tests, security) for all tools"
+	@echo "  make list          - List all tools in the workspace"
+	@echo "  make sync          - Run 'uv sync' in all repositories"
+	@echo "  make test          - Run 'uv run pytest' in all repositories"
+	@echo "  make show-coverage - Show test coverage report for all repositories"
+	@echo "  make check-coverage - Enforce 50% coverage threshold across repos (fails if any repo is under)"
+	@echo "  make stats         - Show file length statistics and identify large files"
+	@echo "  make check         - Run 'uv run ruff check' in all repositories"
+	@echo "  make fix           - Run 'uv run ruff check --fix' in all repositories"
+	@echo "  make status        - Show which repositories have uncommitted changes"
+	@echo "  make uncommitted   - Show a concise list of repos with uncommitted work"
+	@echo "  make unpushed      - Show which repositories have unpushed commits"
+	@echo "  make check-tools   - Check that all tools follow the standardized structure"
+	@echo "  make help-tools    - Show CLI help/parameters for all tools"
+	@echo "  make check-hooks   - Check if git hooks are installed and up-to-date"
+	@echo "  make check-standards - Verify architectural rules across all tools"
+	@echo "  make pre-commit    - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
-	@echo "  make push    - Push all repositories to their remotes (prompts for confirmation)"
+	@echo "  make push          - Push all repositories to their remotes (prompts for confirmation)"
 	@echo "  make use-local     - Switch all repos to use local-first-common from ../local-first-common (dev mode)"
 	@echo "  make use-github    - Switch all repos back to GitHub source (required before committing/pushing)"
-	@echo "  make source-status - Show current local-first-common source for each repo"
+	@echo "  make show-sources  - Show current local-first-common source for each repo"
 	@echo "  make upgrade-locks - Upgrade local-first-common in all uv.lock files"
-	@echo "  make check-standards - Verify architectural rules across all tools"
 
 list:
 	@echo "Local-first AI tools:"
@@ -100,13 +158,36 @@ test:
 		fi \
 	done
 
-coverage:
+show-coverage:
 	@for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Coverage: $$repo ---"; \
 			(cd $$repo && uv run pytest --cov=src --cov-report=term-missing); \
 		fi \
 	done
+
+check-coverage:
+	@echo "Checking test coverage (minimum 50%) across repos..."
+	@FAILED=0; \
+	for repo in $(REPOS); do \
+		case "$$repo" in \
+			"local-first-common/"|"local-first-mcp/"|"local-ai-tool-template/") continue ;; \
+		esac; \
+		if [ -f "$$repo/pyproject.toml" ] && [ -d "$$repo/src" ]; then \
+			echo "--- Coverage: $$repo ---"; \
+			if ! (cd $$repo && uv run pytest --cov=src --cov-fail-under=50 -q 2>&1 | tail -8); then \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi \
+	done; \
+	if [ $$FAILED -gt 0 ]; then \
+		echo ""; \
+		echo "✗ $$FAILED repo(s) are below 50% coverage threshold."; \
+		exit 1; \
+	else \
+		echo ""; \
+		echo "✓ All repos meet coverage threshold."; \
+	fi
 
 stats:
 	@echo "--- Top 10 Longest Python Files ---"
@@ -156,7 +237,7 @@ uncommitted:
 	done
 	@echo ""
 
-check-pushed:
+unpushed:
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
 			UPSTREAM=$$(cd $$repo && git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null); \
@@ -173,7 +254,7 @@ check-pushed:
 		fi \
 	done
 
-verify-tools:
+check-tools:
 	@for repo in $(REPOS); do \
 		case "$$repo" in \
 			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
@@ -205,7 +286,7 @@ verify-tools:
 		fi \
 	done
 
-tool-help:
+help-tools:
 	@for repo in $(REPOS); do \
 		case "$$repo" in \
 			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
@@ -220,7 +301,7 @@ tool-help:
 		fi \
 	done
 
-verify-hooks:
+check-hooks:
 	@HOOK_VERSION=$$(grep "HOOK_VERSION =" local-first-common/install_hooks.py | cut -d'"' -f2); \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
@@ -252,10 +333,8 @@ pre-commit:
 	done
 
 push:
-	@echo "WARNING: About to push ALL repositories to their remotes."
-	@echo "Press Enter to continue or Ctrl-C to abort."
-	@read -r _confirm; \
-	for repo in $(REPOS); do \
+	@read -p "Push all repos to GitHub? [Enter to continue, Ctrl-C to abort] " _
+	@for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
 			echo "--- Pushing $$repo ---"; \
 			(cd $$repo && git push); \

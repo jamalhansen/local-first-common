@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.1"
+HOOK_VERSION = "1.2"
 
 PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
@@ -43,12 +43,12 @@ if [ $STATUS -ne 0 ]; then
     exit 1
 fi
 
-echo "Running pytest..."
-uv run pytest -q
+echo "Running pytest with coverage check..."
+uv run pytest -q --cov=src --cov-fail-under=50
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
     echo ""
-    echo "Commit blocked: tests failed. Fix them or use --no-verify to bypass."
+    echo "Commit blocked: tests failed or coverage below 50%. Fix them or use --no-verify to bypass."
     exit 1
 fi
 

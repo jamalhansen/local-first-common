@@ -4,6 +4,9 @@ Checks staged files (or all tracked files with --all-files) for:
   - Personal paths embedded in source code
   - Sensitive filenames accidentally staged
   - Missing .gitignore entries for sensitive files
+  - Typer anti-pattern (default value as first arg to typer.Option)
+  - Duplicate register_tool() across multiple source files
+  - Direct LLM library imports (must use local-first-common providers)
 
 Run as pre-commit hook (staged files only):
     Automatically called by git — installed by install_hooks.py
@@ -48,6 +51,21 @@ PERSONAL_PATH_ALLOWLIST = {
     "SKILL.md",             # skill files reference real vault/project paths by design
     "MEMORY.md",            # memory files contain personal paths by design
 }
+
+# Repos exempt from LLM-import and register_tool checks
+EXEMPT_REPOS = {"local-first-common", "local-first-mcp", "pebble", "local-ai-tool-template"}
+
+# Typer anti-pattern: default value supplied as first positional arg to typer.Option()
+# Correct form: typer.Option("--flag", ...) or typer.Option("-f", ...)
+TYPER_ANTIPATTERN_RE = re.compile(
+    r"""typer\.Option\((?:os\.environ|['"]\s*[^-])""",
+)
+
+# Direct LLM library imports that should go through local-first-common providers
+DIRECT_LLM_IMPORT_RE = re.compile(
+    r"""^(?:import|from)\s+(?:anthropic|openai|google\.generativeai|groq|ollama)\b""",
+    re.MULTILINE,
+)
 
 
 # ── Checks ────────────────────────────────────────────────────────────────────
@@ -113,6 +131,93 @@ def check_gitignore(repo_path: Path) -> list[str]:
     return findings
 
 
+def check_typer_antipattern(repo_path: Path, all_files: bool = False) -> list[str]:
+    """Check staged/tracked Python files for the Typer anti-pattern.
+
+    The anti-pattern is passing a default value as the first positional arg
+    to typer.Option() instead of a flag string.  Correct form:
+        provider: Annotated[str, typer.Option("--provider", "-p", ...)] = "ollama"
+    """
+    findings = []
+    for filename in _get_files(repo_path, all_files):
+        path = repo_path / filename
+        if path.suffix != ".py" or not path.exists():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        for match in TYPER_ANTIPATTERN_RE.finditer(content):
+            line_num = content[: match.start()].count("\n") + 1
+            findings.append(
+                f"  {filename}:{line_num} — Typer anti-pattern: default value as first arg "
+                f"to typer.Option() (causes 'Name defined twice' error). "
+                f"Use Annotated[..., typer.Option('--flag', ...)] = default instead."
+            )
+    return findings
+
+
+def check_duplicate_register_tool(repo_path: Path) -> list[str]:
+    """Check that register_tool() appears in at most one source file per repo.
+
+    Calling register_tool() from multiple files creates duplicate run entries
+    in the tracking DB for every invocation.
+    """
+    src_dir = repo_path / "src"
+    if not src_dir.exists():
+        return []
+    if repo_path.name in EXEMPT_REPOS:
+        return []
+
+    files_with_registration: list[str] = []
+    for py_file in src_dir.rglob("*.py"):
+        try:
+            if "register_tool(" in py_file.read_text(encoding="utf-8", errors="ignore"):
+                files_with_registration.append(str(py_file.relative_to(repo_path)))
+        except Exception:
+            continue
+
+    if len(files_with_registration) > 1:
+        names = ", ".join(files_with_registration)
+        return [
+            f"  register_tool() found in {len(files_with_registration)} files (must be exactly 1): {names}"
+        ]
+    return []
+
+
+def check_direct_llm_imports(repo_path: Path, all_files: bool = False) -> list[str]:
+    """Check for direct LLM library imports in src/ Python files.
+
+    All LLM access must go through local_first_common.providers so that
+    provider switching, model tracking, and timed_run work correctly.
+    """
+    if repo_path.name in EXEMPT_REPOS:
+        return []
+
+    src_dir = repo_path / "src"
+    findings = []
+    for filename in _get_files(repo_path, all_files):
+        path = repo_path / filename
+        if path.suffix != ".py" or not path.exists():
+            continue
+        # Only flag files inside src/
+        try:
+            path.relative_to(src_dir)
+        except ValueError:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        for match in DIRECT_LLM_IMPORT_RE.finditer(content):
+            line_num = content[: match.start()].count("\n") + 1
+            findings.append(
+                f"  {filename}:{line_num} — direct LLM import: {match.group().strip()!r} "
+                f"(use local_first_common.providers instead)"
+            )
+    return findings
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) -> bool:
@@ -123,6 +228,9 @@ def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) ->
         ("Personal paths", lambda p: check_personal_paths(p, all_files)),
         ("Gitignore coverage", check_gitignore),
         ("Sensitive filenames", lambda p: check_sensitive_filenames(p, all_files)),
+        ("Typer anti-pattern", lambda p: check_typer_antipattern(p, all_files)),
+        ("Duplicate register_tool", check_duplicate_register_tool),
+        ("Direct LLM imports", lambda p: check_direct_llm_imports(p, all_files)),
     ]
 
     for label, fn in checks:
