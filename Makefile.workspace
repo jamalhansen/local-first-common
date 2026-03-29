@@ -2,7 +2,7 @@
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
-.PHONY: list test sync check fix status check-tools help-tools check-hooks show-coverage check-coverage stats usage pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards
+.PHONY: list test sync check fix verify status check-tools help-tools check-hooks show-coverage check-coverage stats usage pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -108,6 +108,69 @@ check-standards:
 	done
 	@echo "Standards check complete."
 
+check-installable:
+	@echo "Checking installability and documentation for all tools..."
+	@PASS=0; FAIL=0; \
+	for repo in $(REPOS); do \
+		case "$$repo" in \
+			"local-first-common/"|"claude-skills/"|"local-ai-tool-template/"|"pipeline-analysis/") continue ;; \
+		esac; \
+		if [ ! -f "$$repo/pyproject.toml" ]; then continue; fi; \
+		repo_name=$$(basename "$$repo"); \
+		echo "--- $$repo_name ---"; \
+		REPO_PASS=1; \
+		sync_out=$$(cd "$$repo" && uv sync --quiet 2>&1); \
+		if [ $$? -eq 0 ]; then \
+			echo "  [PASS] uv sync"; \
+		else \
+			echo "  [FAIL] uv sync: $$sync_out"; \
+			REPO_PASS=0; \
+		fi; \
+		scripts_section=$$(grep -A5 '^\[project\.scripts\]' "$$repo/pyproject.toml" 2>/dev/null | grep -v '^\[project\.scripts\]' | grep -v '^$$' | grep -v '^\[' | head -1); \
+		if [ -n "$$scripts_section" ]; then \
+			echo "  [PASS] [project.scripts] present"; \
+			cmd_name=$$(echo "$$scripts_section" | sed 's/[[:space:]]*=.*//' | tr -d ' '); \
+			module_path=$$(echo "$$scripts_section" | sed 's/.*= *"\([^:]*\):.*/\1/' | tr -d ' '); \
+			if [ -n "$$module_path" ]; then \
+				import_out=$$(cd "$$repo" && uv run python -c "import $$module_path" 2>&1); \
+				if [ $$? -eq 0 ]; then \
+					echo "  [PASS] import $$module_path"; \
+				else \
+					echo "  [FAIL] import $$module_path: $$import_out"; \
+					REPO_PASS=0; \
+				fi; \
+			fi; \
+			if [ -f "$$repo/README.md" ]; then \
+				echo "  [PASS] README.md exists"; \
+				if grep -q "$$cmd_name" "$$repo/README.md" 2>/dev/null; then \
+					echo "  [PASS] README.md documents entry point '$$cmd_name'"; \
+				else \
+					echo "  [FAIL] README.md does not mention entry point '$$cmd_name'"; \
+					REPO_PASS=0; \
+				fi; \
+			else \
+				echo "  [FAIL] README.md missing"; \
+				REPO_PASS=0; \
+			fi; \
+		else \
+			echo "  [FAIL] [project.scripts] missing in pyproject.toml"; \
+			REPO_PASS=0; \
+			if [ -f "$$repo/README.md" ]; then \
+				echo "  [PASS] README.md exists"; \
+			else \
+				echo "  [FAIL] README.md missing"; \
+			fi; \
+		fi; \
+		if [ "$$REPO_PASS" -eq 1 ]; then \
+			PASS=$$((PASS + 1)); \
+		else \
+			FAIL=$$((FAIL + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	TOTAL=$$((PASS + FAIL)); \
+	echo "$$PASS/$$TOTAL tools fully installable and documented"
+
 help:
 	@echo "Usage:"
 	@echo "  make list          - List all tools in the workspace"
@@ -125,6 +188,8 @@ help:
 	@echo "  make help-tools    - Show CLI help/parameters for all tools"
 	@echo "  make check-hooks   - Check if git hooks are installed and up-to-date"
 	@echo "  make check-standards - Verify architectural rules across all tools"
+	@echo "  make check-installable - Validate every tool can be installed and has a documented entry point"
+	@echo "  make verify            - Full workspace health check (lint + tools + hooks + standards + coverage + installable)"
 	@echo "  make pre-commit    - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
 	@echo "  make push          - Push all repositories to their remotes (prompts for confirmation)"
@@ -204,6 +269,10 @@ check:
 			(cd $$repo && uv run ruff check .); \
 		fi \
 	done
+
+verify: check check-tools check-hooks check-standards check-coverage check-installable
+	@echo ""
+	@echo "✓ Full workspace verification complete."
 
 fix:
 	@for repo in $(REPOS); do \

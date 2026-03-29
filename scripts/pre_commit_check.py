@@ -218,6 +218,37 @@ def check_direct_llm_imports(repo_path: Path, all_files: bool = False) -> list[s
     return findings
 
 
+def check_test_coverage(repo_path: Path) -> list[str]:
+    """Check that test coverage is at least 50% if tests exist."""
+    tests_dir = repo_path / "tests"
+    if not tests_dir.exists():
+        return []
+
+    try:
+        # Run pytest with coverage and check if it fails the threshold
+        # We use -q to keep it quiet and --cov-fail-under=50
+        result = subprocess.run(
+            ["uv", "run", "pytest", "-q", "--cov=src", "--cov-fail-under=50"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            # If it failed due to coverage, find the total coverage line
+            if "Required test coverage of 50% not reached" in result.stdout:
+                match = re.search(r"TOTAL\s+\d+\s+\d+\s+(\d+)%", result.stdout)
+                val = match.group(1) if match else "below 50"
+                return [f"  Test coverage too low: {val}% (minimum 50%)"]
+            elif "unrecognized arguments: --cov=src" in result.stderr:
+                return ["  pytest-cov not installed or configured in pyproject.toml"]
+            else:
+                # Other test failure
+                return [f"  Tests failed (exit code {result.returncode})"]
+        return []
+    except Exception as e:
+        return [f"  Error running coverage check: {e}"]
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) -> bool:
