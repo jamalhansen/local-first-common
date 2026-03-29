@@ -7,6 +7,8 @@ Checks staged files (or all tracked files with --all-files) for:
   - Typer anti-pattern (default value as first arg to typer.Option)
   - Duplicate register_tool() across multiple source files
   - Direct LLM library imports (must use local-first-common providers)
+  - Tracked .pyc / __pycache__ files committed to git
+  - Relative imports in src/main.py (broken entry-point pattern)
 
 Run as pre-commit hook (staged files only):
     Automatically called by git — installed by install_hooks.py
@@ -218,6 +220,58 @@ def check_direct_llm_imports(repo_path: Path, all_files: bool = False) -> list[s
     return findings
 
 
+def check_tracked_bytecode(repo_path: Path) -> list[str]:
+    """Check that no .pyc files or __pycache__ directories are tracked by git.
+
+    Bytecode files are machine-specific and should never be committed.
+    They are usually caught by .gitignore, but can sneak in if .gitignore
+    was added after the first commit.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        tracked = result.stdout.splitlines()
+    except Exception:
+        return []
+
+    findings = []
+    for f in tracked:
+        if f.endswith(".pyc") or f.endswith(".pyo") or "__pycache__" in f:
+            findings.append(f"  tracked bytecode file: {f}  (run: git rm --cached {f!r})")
+    return findings
+
+
+def check_main_entry_point(repo_path: Path) -> list[str]:
+    """Check src/main.py for relative imports, which break the installed entry point.
+
+    src/ is not a package — it's a source root.  Using 'from .module import x'
+    in src/main.py causes ImportError when the installed script is invoked.
+    Use absolute imports instead: 'from package_name.module import x'.
+    """
+    main_py = repo_path / "src" / "main.py"
+    if not main_py.exists():
+        return []
+    try:
+        content = main_py.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return []
+
+    findings = []
+    relative_import_re = re.compile(r"^\s*from\s+\.", re.MULTILINE)
+    for match in relative_import_re.finditer(content):
+        line_num = content[: match.start()].count("\n") + 1
+        line = content.splitlines()[line_num - 1].strip()
+        findings.append(
+            f"  src/main.py:{line_num} — relative import in entry-point file: {line!r}  "
+            f"(use absolute import, e.g. 'from package_name.module import app')"
+        )
+    return findings
+
+
 def check_test_coverage(repo_path: Path) -> list[str]:
     """Check that test coverage is at least 50% if tests exist."""
     tests_dir = repo_path / "tests"
@@ -262,6 +316,8 @@ def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) ->
         ("Typer anti-pattern", lambda p: check_typer_antipattern(p, all_files)),
         ("Duplicate register_tool", check_duplicate_register_tool),
         ("Direct LLM imports", lambda p: check_direct_llm_imports(p, all_files)),
+        ("Tracked bytecode", check_tracked_bytecode),
+        ("Entry-point imports", check_main_entry_point),
     ]
 
     for label, fn in checks:

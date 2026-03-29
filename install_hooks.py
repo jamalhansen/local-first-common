@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.2"
+HOOK_VERSION = "1.3"
 
 PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
@@ -35,7 +35,7 @@ SCANNER="$HOME/projects/local-first/local-first-common/scripts/pre_commit_check.
 cd "$REPO_ROOT" || exit 1
 
 echo "Running ruff check..."
-uv run ruff check .
+uv run ruff check --extend-select SIM115 .
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
     echo ""

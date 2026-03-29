@@ -266,7 +266,7 @@ check:
 	@for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Checking $$repo ---"; \
-			(cd $$repo && uv run ruff check .); \
+			(cd $$repo && uv run ruff check --extend-select SIM115 .); \
 		fi \
 	done
 
@@ -278,7 +278,7 @@ fix:
 	@for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Fixing $$repo ---"; \
-			(cd $$repo && uv run ruff check --fix .); \
+			(cd $$repo && uv run ruff check --extend-select SIM115 --fix .); \
 		fi \
 	done
 
@@ -395,7 +395,7 @@ pre-commit:
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Pre-commit: $$repo ---"; \
 			(cd $$repo && \
-			 uv run ruff check . && \
+			 uv run ruff check --extend-select SIM115 . && \
 			 if [ -d "tests" ]; then uv run pytest -q; fi && \
 			 python3 ../local-first-common/scripts/pre_push_check.py . --all-files); \
 		fi \
