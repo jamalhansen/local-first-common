@@ -1,4 +1,4 @@
-"""Persona store: load YAML persona files into structured PersonaCard models."""
+"""Persona store: load YAML or Markdown persona files into a unified BasePersona model."""
 import os
 import re
 from pathlib import Path
@@ -13,11 +13,18 @@ DEFAULT_PERSONAS_DIR = Path(
 ).expanduser()
 
 
-class ObsidianPersona(BaseModel):
+class BasePersona(BaseModel):
+    """A unified persona model that works across YAML and Obsidian Markdown sources."""
     name: str
     archetype: str
     system_prompt: str
     metadata: dict = Field(default_factory=dict)
+    domain: str = ""  # For PersonaCard compatibility
+
+
+class ObsidianPersona(BasePersona):
+    """Legacy model for Obsidian personas — now just an alias for BasePersona."""
+    pass
 
 
 class PersonaBias(BaseModel):
@@ -38,6 +45,16 @@ class PersonaCard(BaseModel):
     penalizes: list[str]
     conflict_signature: str
     system_prompt: str
+
+    def to_base(self) -> BasePersona:
+        """Convert a legacy PersonaCard to the unified BasePersona."""
+        return BasePersona(
+            name=self.name,
+            archetype=self.archetype,
+            system_prompt=self.system_prompt,
+            domain=self.domain,
+            metadata={"source": "yaml"}
+        )
 
 
 def get_brand_voice(path: Optional[Path] = None) -> str:
@@ -76,33 +93,62 @@ def _personas_dir(override: Optional[Path] = None) -> Path:
     return override if override is not None else DEFAULT_PERSONAS_DIR
 
 
-def load_persona(name: str, personas_dir: Optional[Path] = None) -> PersonaCard:
-    """Load a single persona by name. Raises FileNotFoundError if not found."""
+def load_any_persona(path: Path) -> BasePersona:
+    """Load a persona from either .yaml or .md format."""
+    if path.suffix.lower() == ".yaml":
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        card = PersonaCard(**data)
+        return card.to_base()
+    elif path.suffix.lower() == ".md":
+        return load_obsidian_persona(path)
+    else:
+        raise ValueError(f"Unsupported persona format: {path.suffix}")
+
+
+def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
+    """Load a single persona by name (checking .yaml then .md). Raises FileNotFoundError if not found."""
     directory = _personas_dir(personas_dir)
-    path = directory / f"{name.lower()}.yaml"
-    if not path.exists():
-        available = sorted(p.stem for p in directory.glob("*.yaml")) if directory.exists() else []
-        hint = f"Available: {', '.join(available)}" if available else "No personas found."
-        raise FileNotFoundError(f"Persona '{name}' not found at {path}. {hint}")
-    with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return PersonaCard(**data)
+    yaml_path = directory / f"{name.lower()}.yaml"
+    md_path = directory / f"{name.lower()}.md"
+    
+    if yaml_path.exists():
+        return load_any_persona(yaml_path)
+    if md_path.exists():
+        return load_any_persona(md_path)
+        
+    available = []
+    if directory.exists():
+        available = sorted(p.stem for p in directory.glob("*") if p.suffix in (".yaml", ".md"))
+    hint = f"Available: {', '.join(available)}" if available else "No personas found."
+    raise FileNotFoundError(f"Persona '{name}' not found at {directory}. {hint}")
 
 
-def list_personas(personas_dir: Optional[Path] = None) -> list[PersonaCard]:
-    """Return all persona cards from the personas directory, sorted by name."""
+def list_personas(personas_dir: Optional[Path] = None) -> list[BasePersona]:
+    """Return all persona cards (.yaml and .md) from the personas directory, sorted by name."""
     directory = _personas_dir(personas_dir)
     if not directory.exists():
         return []
-    cards = []
-    for yaml_file in sorted(directory.glob("*.yaml")):
-        with open(yaml_file, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        cards.append(PersonaCard(**data))
-    return cards
+    
+    personas = []
+    # Load YAMLs
+    for yaml_file in directory.glob("*.yaml"):
+        try:
+            personas.append(load_any_persona(yaml_file))
+        except Exception:
+            pass
+            
+    # Load MDs
+    for md_file in directory.glob("*.md"):
+        try:
+            personas.append(load_any_persona(md_file))
+        except Exception:
+            pass
+            
+    return sorted(personas, key=lambda p: p.name.lower())
 
 
-def load_obsidian_persona(path: Path) -> ObsidianPersona:
+def load_obsidian_persona(path: Path) -> BasePersona:
     """Parse an Obsidian persona markdown file."""
     content = path.read_text(encoding="utf-8")
     
@@ -136,15 +182,15 @@ def load_obsidian_persona(path: Path) -> ObsidianPersona:
         else:
             system_prompt = f"You are {name}, {archetype}."
 
-    return ObsidianPersona(
+    return BasePersona(
         name=name,
         archetype=archetype,
         system_prompt=system_prompt,
-        metadata={"path": str(path)}
+        metadata={"path": str(path), "source": "obsidian"}
     )
 
 
-def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[ObsidianPersona]:
+def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[BasePersona]:
     """List all personas in a specific obsidian category."""
     if vault_path is None:
         vault_path = Path(os.environ.get("OBSIDIAN_VAULT_PATH", ""))
@@ -164,4 +210,4 @@ def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] =
             # Using print is fine here as it's a utility function
             print(f"Warning: Failed to load persona {md_file}: {e}")
             
-    return sorted(personas, key=lambda p: p.name)
+    return sorted(personas, key=lambda p: p.name.lower())

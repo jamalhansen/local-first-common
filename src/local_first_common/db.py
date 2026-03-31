@@ -1,10 +1,26 @@
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, Optional
 
+def _resolve_quality_db_path() -> Path:
+    """Resolve the content quality database path with fallback logic."""
+    # 1. Environment variable override
+    if env := os.environ.get("LOCAL_FIRST_QUALITY_DB"):
+        return Path(env).expanduser()
+    
+    # 2. Preferred sync path
+    sync_path = Path("~/sync/local-first/content_quality.db").expanduser()
+    if sync_path.exists():
+        return sync_path
+    
+    # 3. Local fallback (XDG-ish)
+    fallback_path = Path("~/.local/share/local-first/content_quality.db").expanduser()
+    return fallback_path
+
 # Standard paths for syncing across devices
-CONTENT_QUALITY_DB_PATH = Path("~/sync/local-first/content_quality.db").expanduser()
+CONTENT_QUALITY_DB_PATH = _resolve_quality_db_path()
 
 
 @contextmanager
@@ -57,6 +73,10 @@ def mark_status(
 ) -> None:
     """Update the status of an item by its URL."""
     path = Path(db_path).expanduser()
+    if not path.exists():
+        # Auto-create directory if it doesn't exist when we are about to write
+        path.parent.mkdir(parents=True, exist_ok=True)
+
     conn = sqlite3.connect(str(path))
     try:
         if timestamp_col:

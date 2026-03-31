@@ -202,6 +202,74 @@ def timed_run(
     return _TimedRun(tool_name, model, source_location, db_path)
 
 
+def track_llm_run(
+    tool_name: str,
+    model: str | None,
+    source_location: str | None = None,
+    db_path: str | Path | None = None,
+) -> "_TrackedRun":
+    """Improved context manager that can automatically extract token counts from results.
+
+    Usage::
+
+        with track_llm_run("my-tool", provider.model, url) as run:
+            result = provider.complete(system, user)
+            run.track(result)
+    """
+    return _TrackedRun(tool_name, model, source_location, db_path)
+
+
+class _TrackedRun:
+    """Helper that extends _TimedRun with automatic metadata extraction."""
+
+    def __init__(self, tool_name, model, source_location, db_path):
+        self._run = _TimedRun(tool_name, model, source_location, db_path)
+
+    def __enter__(self) -> "_TrackedRun":
+        self._run.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, tb):
+        return self._run.__exit__(exc_type, exc_val, tb)
+
+    @property
+    def item_count(self) -> int | None:
+        return self._run.item_count
+
+    @item_count.setter
+    def item_count(self, value: int | None):
+        self._run.item_count = value
+
+    def track(self, result: any, item_count: int | None = None):
+        """Extract metadata (tokens, etc.) from a result object.
+
+        Supports:
+        - BaseProvider results (attributes: input_tokens, output_tokens)
+        - pydantic-ai RunResult (method: usage())
+        """
+        if item_count is not None:
+            self._run.item_count = item_count
+
+        # 1. Check for BaseProvider-style attributes
+        if hasattr(result, "input_tokens"):
+            self._run.input_tokens = getattr(result, "input_tokens", None)
+        if hasattr(result, "output_tokens"):
+            self._run.output_tokens = getattr(result, "output_tokens", None)
+
+        # 2. Check for pydantic-ai style usage()
+        if hasattr(result, "usage") and callable(result.usage):
+            try:
+                usage = result.usage()
+                if hasattr(usage, "request_tokens"):  # pydantic-ai 0.0.14+
+                    self._run.input_tokens = usage.request_tokens
+                    self._run.output_tokens = usage.response_tokens
+                elif hasattr(usage, "prompt_tokens"):  # older or other styles
+                    self._run.input_tokens = usage.prompt_tokens
+                    self._run.output_tokens = usage.completion_tokens
+            except Exception:  # noqa: BLE001
+                pass
+
+
 class _TimedRun:
     def __init__(self, tool_name, model, source_location, db_path):
         self.tool_name = tool_name
