@@ -1,4 +1,5 @@
 """Persona store: load YAML or Markdown persona files into a unified BasePersona model."""
+import logging
 import os
 import re
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import Optional
 import yaml
 import frontmatter
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_PERSONAS_DIR = Path(
     os.environ.get("LOCAL_FIRST_PERSONAS_DIR", "~/.config/local-first/personas")
@@ -190,15 +193,12 @@ def load_obsidian_persona(path: Path) -> BasePersona:
     )
 
 
-def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[BasePersona]:
-    """List all personas in a specific obsidian category."""
-    if vault_path is None:
-        vault_path = Path(os.environ.get("OBSIDIAN_VAULT_PATH", ""))
-        
-    if not vault_path or not vault_path.exists():
-        return []
-        
-    persona_dir = vault_path / "personas" / category
+def list_vault_personas(category: str, vault_path: Optional[Path] = None) -> list[BasePersona]:
+    """List all personas in a specific obsidian category (under personas/{category})."""
+    from .obsidian import find_vault_root
+    
+    root = vault_path or find_vault_root()
+    persona_dir = root / "personas" / category
     if not persona_dir.exists():
         return []
         
@@ -207,7 +207,11 @@ def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] =
         try:
             personas.append(load_obsidian_persona(md_file))
         except Exception as e:
-            # Using print is fine here as it's a utility function
-            print(f"Warning: Failed to load persona {md_file}: {e}")
+            logger.warning("Failed to load persona %s: %s", md_file, e)
             
     return sorted(personas, key=lambda p: p.name.lower())
+
+
+def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[BasePersona]:
+    """List all personas in a specific obsidian category. Legacy alias for list_vault_personas."""
+    return list_vault_personas(category, vault_path)
