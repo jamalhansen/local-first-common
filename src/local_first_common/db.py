@@ -1,10 +1,14 @@
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Optional
+
+# Standard paths for syncing across devices
+CONTENT_QUALITY_DB_PATH = Path("~/sync/local-first/content_quality.db").expanduser()
+
 
 @contextmanager
-def get_db_cursor(db_path: str | Path) -> Generator[sqlite3.Cursor, None, None]:
+def get_db_cursor(db_path: str | Path) -> Generator[Optional[sqlite3.Cursor], None, None]:
     """Context manager for a SQLite database cursor.
     
     Handles connection, sets Row factory, and closes on exit.

@@ -1,7 +1,12 @@
+import asyncio
 import json
+import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Union, get_args, get_origin
+
+logger = logging.getLogger(__name__)
 
 
 class BaseProvider(ABC):
@@ -31,6 +36,56 @@ class BaseProvider(ABC):
         images: Optional[list[str]] = None,
     ) -> Union[str, Dict[str, Any]]: ...
 
+    @staticmethod
+    def _is_rate_limit_error(e: Exception) -> bool:
+        """Return True if the exception indicates a 429 Too Many Requests response."""
+        return "429" in str(e)
+
+    def _complete_with_backoff(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any],
+        images: Optional[list[str]],
+        rate_limit_retries: int,
+    ) -> Union[str, Dict[str, Any]]:
+        """Call _complete with exponential backoff on 429 rate-limit errors.
+
+        Waits 5s, 10s, 20s, ... between retries (doubles each time).
+        """
+        for attempt in range(rate_limit_retries + 1):
+            try:
+                return self._complete(system, user, response_model=response_model, images=images)
+            except Exception as e:
+                if self._is_rate_limit_error(e) and attempt < rate_limit_retries:
+                    wait = 5 * (2 ** attempt)
+                    logger.warning("Rate limited (429). Waiting %ds before retry %d/%d.", wait, attempt + 1, rate_limit_retries)
+                    print(f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...", flush=True)
+                    time.sleep(wait)
+                    continue
+                raise
+
+    async def _acomplete_with_backoff(
+        self,
+        system: str,
+        user: str,
+        response_model: Optional[Any],
+        images: Optional[list[str]],
+        rate_limit_retries: int,
+    ) -> Union[str, Dict[str, Any]]:
+        """Async version of _complete_with_backoff."""
+        for attempt in range(rate_limit_retries + 1):
+            try:
+                return await self._acomplete(system, user, response_model=response_model, images=images)
+            except Exception as e:
+                if self._is_rate_limit_error(e) and attempt < rate_limit_retries:
+                    wait = 5 * (2 ** attempt)
+                    logger.warning("Rate limited (429). Waiting %ds before retry %d/%d.", wait, attempt + 1, rate_limit_retries)
+                    print(f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...", flush=True)
+                    await asyncio.sleep(wait)
+                    continue
+                raise
+
     def complete(
         self,
         system: str,
@@ -38,23 +93,25 @@ class BaseProvider(ABC):
         response_model: Optional[Any] = None,
         images: Optional[list[str]] = None,
         max_retries: int = 1,
+        rate_limit_retries: int = 3,
     ) -> Union[str, Dict[str, Any]]:
-        """Call the LLM with optional retry on JSON/validation failure.
-        
-        max_retries=1 means 2 total attempts (initial + 1 retry).
+        """Call the LLM with retry on JSON/validation failure and 429 rate limits.
+
+        max_retries controls retries on bad responses (error injected into prompt).
+        rate_limit_retries controls retries on 429s with exponential backoff (5s, 10s, 20s).
         """
         current_user = user
-        
+
         for attempt in range(max_retries + 1):
             try:
-                result = self._complete(system, current_user, response_model=response_model, images=images)
-                
+                result = self._complete_with_backoff(system, current_user, response_model, images, rate_limit_retries)
+
                 if response_model and hasattr(response_model, "model_validate"):
                     response_model.model_validate(result)
-                
+
                 return result
             except Exception as e:
-                if attempt < max_retries:
+                if attempt < max_retries and not self._is_rate_limit_error(e):
                     current_user = user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
                     continue
                 raise
@@ -66,23 +123,21 @@ class BaseProvider(ABC):
         response_model: Optional[Any] = None,
         images: Optional[list[str]] = None,
         max_retries: int = 1,
+        rate_limit_retries: int = 3,
     ) -> Union[str, Dict[str, Any]]:
-        """Call the LLM with optional retry on JSON/validation failure (async).
-        
-        max_retries=1 means 2 total attempts (initial + 1 retry).
-        """
+        """Async version of complete(). Same retry behaviour."""
         current_user = user
-        
+
         for attempt in range(max_retries + 1):
             try:
-                result = await self._acomplete(system, current_user, response_model=response_model, images=images)
-                
+                result = await self._acomplete_with_backoff(system, current_user, response_model, images, rate_limit_retries)
+
                 if response_model and hasattr(response_model, "model_validate"):
                     response_model.model_validate(result)
-                
+
                 return result
             except Exception as e:
-                if attempt < max_retries:
+                if attempt < max_retries and not self._is_rate_limit_error(e):
                     current_user = user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
                     continue
                 raise

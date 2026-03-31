@@ -80,17 +80,18 @@ check-standards:
 			fi \
 		fi \
 	done
-	@# Check: pydantic-ai usage outside of persona-counsel
+	@# Check: pydantic-ai usage outside of allowed repos
 	@echo "Checking for pydantic-ai usage..."
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
-			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"persona-counsel/") continue ;; esac; \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"persona-counsel/"|"marketing-persona-counsel/") continue ;; esac; \
 			if grep -r "pydantic_ai" "$$repo/src/" > /dev/null; then \
-				echo "  [FAIL] $$repo uses pydantic_ai (only persona-counsel is allowed)"; \
+				echo "  [FAIL] $$repo uses pydantic_ai (only persona-counsel and marketing-persona-counsel are allowed)"; \
+				grep -rl "pydantic_ai" "$$repo/src/" | sed 's/^/    /'; \
 			fi \
 		fi \
 	done
-	@# Check: timed_run usage (per-file: each file that calls LLM must wrap it)
+	@# Check: timed_run usage (per-file: each file that calls .complete( must wrap it)
 	@echo "Verifying timed_run coverage (per-file)..."
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
@@ -98,9 +99,9 @@ check-standards:
 				"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
 			esac; \
 			find "$$repo/src" -name "*.py" | while read pyfile; do \
-				if grep -qE "resolve_provider|PROVIDERS\[" "$$pyfile" 2>/dev/null; then \
+				if grep -qE "\.complete\(" "$$pyfile" 2>/dev/null; then \
 					if ! grep -q "timed_run" "$$pyfile"; then \
-						echo "  [WARN] $$pyfile calls LLM (resolve_provider/PROVIDERS) but is missing timed_run"; \
+						echo "  [WARN] $$pyfile calls .complete() but is missing timed_run"; \
 					fi \
 				fi \
 			done; \

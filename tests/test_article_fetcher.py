@@ -39,6 +39,10 @@ class TestFeedItem:
         item = FeedItem(title="T", description="D", url="u", source="s")
         assert item.published == ""
 
+    def test_found_at_defaults_to_none(self):
+        item = FeedItem(title="T", description="D", url="u", source="s")
+        assert item.found_at is None
+
 
 class TestFetchArticleMetadata:
     def test_extracts_og_title_and_og_description(self):
@@ -77,6 +81,21 @@ class TestFetchArticleMetadata:
 
         assert item is not None
         assert item.url == url
+
+    def test_found_at_is_none_when_no_source_url(self):
+        with patch("local_first_common.http.fetch_url", return_value=SAMPLE_HTML):
+            item = fetch_article_metadata("https://duckdb.org/article")
+
+        assert item is not None
+        assert item.found_at is None
+
+    def test_found_at_is_set_from_source_url(self):
+        post_url = "https://bsky.app/profile/user.bsky.social/post/abc123"
+        with patch("local_first_common.http.fetch_url", return_value=SAMPLE_HTML):
+            item = fetch_article_metadata("https://duckdb.org/article", source_url=post_url)
+
+        assert item is not None
+        assert item.found_at == post_url
 
     def test_falls_back_to_title_tag_when_no_og_title(self):
         with patch("local_first_common.http.fetch_url", return_value=FALLBACK_HTML):

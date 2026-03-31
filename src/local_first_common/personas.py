@@ -6,11 +6,18 @@ from typing import Optional
 
 import yaml
 import frontmatter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 DEFAULT_PERSONAS_DIR = Path(
     os.environ.get("LOCAL_FIRST_PERSONAS_DIR", "~/.config/local-first/personas")
 ).expanduser()
+
+
+class ObsidianPersona(BaseModel):
+    name: str
+    archetype: str
+    system_prompt: str
+    metadata: dict = Field(default_factory=dict)
 
 
 class PersonaBias(BaseModel):
@@ -93,3 +100,68 @@ def list_personas(personas_dir: Optional[Path] = None) -> list[PersonaCard]:
             data = yaml.safe_load(f)
         cards.append(PersonaCard(**data))
     return cards
+
+
+def load_obsidian_persona(path: Path) -> ObsidianPersona:
+    """Parse an Obsidian persona markdown file."""
+    content = path.read_text(encoding="utf-8")
+    
+    # Extract Name from filename or H1
+    name = path.stem
+    h1_match = re.search(r"^# (.*)$", content, re.MULTILINE)
+    if h1_match:
+        name = h1_match.group(1).strip()
+        
+    # Extract Archetype
+    archetype = "General Reader"
+    archetype_match = re.search(r"\*\*Archetype:\*\* (.*)$", content, re.MULTILINE)
+    if archetype_match:
+        archetype = archetype_match.group(1).strip()
+        
+    # Extract System Prompt Seed
+    system_prompt = ""
+    # Look for the blockquote under "System Prompt Seed"
+    seed_match = re.search(
+        r"## System Prompt Seed\s*\n+>\s*(.*?)(?=\n\n|\n#|$)", 
+        content, 
+        re.DOTALL | re.IGNORECASE
+    )
+    if seed_match:
+        system_prompt = seed_match.group(1).strip().replace("\n> ", " ")
+    else:
+        # Fallback: use the "Lens" or "Identity" if seed is missing
+        lens_match = re.search(r"## Lens\s*\n+(.*?)(?=\n##|$)", content, re.DOTALL)
+        if lens_match:
+            system_prompt = f"You are {name}, {archetype}. {lens_match.group(1).strip()}"
+        else:
+            system_prompt = f"You are {name}, {archetype}."
+
+    return ObsidianPersona(
+        name=name,
+        archetype=archetype,
+        system_prompt=system_prompt,
+        metadata={"path": str(path)}
+    )
+
+
+def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[ObsidianPersona]:
+    """List all personas in a specific obsidian category."""
+    if vault_path is None:
+        vault_path = Path(os.environ.get("OBSIDIAN_VAULT_PATH", ""))
+        
+    if not vault_path or not vault_path.exists():
+        return []
+        
+    persona_dir = vault_path / "personas" / category
+    if not persona_dir.exists():
+        return []
+        
+    personas = []
+    for md_file in persona_dir.glob("*.md"):
+        try:
+            personas.append(load_obsidian_persona(md_file))
+        except Exception as e:
+            # Using print is fine here as it's a utility function
+            print(f"Warning: Failed to load persona {md_file}: {e}")
+            
+    return sorted(personas, key=lambda p: p.name)

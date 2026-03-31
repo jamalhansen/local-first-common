@@ -113,6 +113,95 @@ class TestBaseProvider:
         assert result["score"] == 8
 
 
+class TestBaseProviderRateLimit:
+    """Rate-limit retry behaviour in BaseProvider.complete()."""
+
+    def _make_provider(self, responses):
+        """Return a concrete provider whose _complete cycles through responses."""
+        call_count = {"n": 0}
+
+        class Concrete(BaseProvider):
+            default_model = "x"
+            known_models = []
+            models_url = "http://example.com"
+
+            def _complete(self, system, user, response_model=None, images=None):
+                resp = responses[min(call_count["n"], len(responses) - 1)]
+                call_count["n"] += 1
+                if isinstance(resp, Exception):
+                    raise resp
+                return resp
+
+            async def _acomplete(self, system, user, response_model=None, images=None):
+                return self._complete(system, user, response_model=response_model, images=images)
+
+        return Concrete(), call_count
+
+    def test_is_rate_limit_error_detects_429(self):
+        class Concrete(BaseProvider):
+            default_model = "x"
+            known_models = []
+            models_url = ""
+            def _complete(self, *a, **kw): return ""
+            async def _acomplete(self, *a, **kw): return ""
+
+        p = Concrete()
+        assert p._is_rate_limit_error(RuntimeError("429 Too Many Requests")) is True
+        assert p._is_rate_limit_error(RuntimeError("500 Internal Server Error")) is False
+
+    def test_retries_on_429_then_succeeds(self):
+        rate_err = RuntimeError("429 Too Many Requests")
+        provider, call_count = self._make_provider([rate_err, rate_err, "ok"])
+
+        with patch("time.sleep"):
+            result = provider.complete("sys", "usr", rate_limit_retries=3)
+
+        assert result == "ok"
+        assert call_count["n"] == 3
+
+    def test_raises_after_exhausting_rate_limit_retries(self):
+        rate_err = RuntimeError("429 Too Many Requests")
+        provider, call_count = self._make_provider([rate_err, rate_err, rate_err, rate_err])
+
+        with patch("time.sleep"):
+            with pytest.raises(RuntimeError, match="429"):
+                provider.complete("sys", "usr", rate_limit_retries=2)
+
+        assert call_count["n"] == 3  # initial + 2 retries
+
+    def test_does_not_sleep_on_non_rate_limit_error(self):
+        provider, _ = self._make_provider([RuntimeError("500 Server Error")])
+
+        with patch("time.sleep") as mock_sleep:
+            with pytest.raises(RuntimeError, match="500"):
+                provider.complete("sys", "usr", rate_limit_retries=3)
+
+        mock_sleep.assert_not_called()
+
+    def test_backoff_waits_double_each_time(self):
+        rate_err = RuntimeError("429 Too Many Requests")
+        provider, _ = self._make_provider([rate_err, rate_err, rate_err, "ok"])
+
+        with patch("time.sleep") as mock_sleep:
+            provider.complete("sys", "usr", rate_limit_retries=3)
+
+        wait_times = [call.args[0] for call in mock_sleep.call_args_list]
+        assert wait_times == [5, 10, 20]
+
+    def test_rate_limit_not_retried_as_json_error(self):
+        """A 429 that exhausts rate_limit_retries should not trigger max_retries injection."""
+        rate_err = RuntimeError("429 Too Many Requests")
+        provider, call_count = self._make_provider([rate_err] * 10)
+
+        with patch("time.sleep"):
+            with pytest.raises(RuntimeError, match="429"):
+                provider.complete("sys", "usr", max_retries=2, rate_limit_retries=1)
+
+        # rate_limit_retries=1 means 2 calls per max_retries attempt,
+        # but 429 should NOT trigger the JSON-retry outer loop — just 2 calls total
+        assert call_count["n"] == 2
+
+
 class TestOllamaProvider:
     def test_default_model(self):
         p = OllamaProvider()

@@ -30,6 +30,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/local_first_common"]
 
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.84.0"]
+groq = ["groq>=1.0.0"]
+deepseek = ["openai>=2.24.0"]
+gemini = ["google-genai>=1.65.0"]
+pydantic-ai = ["pydantic-ai>=0.0.14"]
+all-providers = ["anthropic>=0.84.0", "groq>=1.0.0", "openai>=2.24.0", "google-genai>=1.65.0", "pydantic-ai>=0.0.14"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",

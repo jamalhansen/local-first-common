@@ -4,12 +4,23 @@ Shared utilities for local-first AI tools. Extracts the common plumbing — LLM 
 
 ## Installation
 
-Add as a git dependency in any project's `pyproject.toml`:
+Add as a git dependency in any project's `pyproject.toml`. Use extras to pull in whichever cloud provider SDKs you need — Ollama needs none:
 
 ```toml
 [project.dependencies]
+# Ollama only (no cloud SDKs):
 local-first-common = {git = "https://github.com/jamalhansen/local-first-common.git", branch = "main"}
+
+# With specific providers:
+local-first-common[anthropic] = {git = "..."}
+local-first-common[anthropic,gemini] = {git = "..."}
+local-first-common[anthropic,groq,deepseek] = {git = "..."}
+
+# All providers at once:
+local-first-common[all-providers] = {git = "..."}
 ```
+
+Available extras: `anthropic`, `groq`, `deepseek` (installs `openai`), `gemini` (installs `google-genai`), `all-providers`.
 
 Then run `uv sync`.
 

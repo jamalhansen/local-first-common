@@ -52,6 +52,7 @@ class FeedItem:
     url: str
     source: str
     published: str = ""  # ISO date e.g. "2026-03-07", empty if unavailable
+    found_at: str | None = None  # URL of the page/post where this link was first found
 
 
 def _is_blocked(netloc: str, blocked_domains: frozenset[str]) -> bool:
@@ -116,4 +117,5 @@ def fetch_article_metadata(
             url=url,
             source=source,
             published=metadata.published_date,
+            found_at=source_url,
         )
