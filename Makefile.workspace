@@ -143,7 +143,7 @@ check-installable:
 			fi; \
 			if [ -f "$$repo/README.md" ]; then \
 				echo "  [PASS] README.md exists"; \
-				if grep -q "$$cmd_name" "$$repo/README.md" 2>/dev/null; then \
+				if grep -q "uv run $$cmd_name" "$$repo/README.md" 2>/dev/null || grep -q "\`$$cmd_name" "$$repo/README.md" 2>/dev/null; then \
 					echo "  [PASS] README.md documents entry point '$$cmd_name'"; \
 				else \
 					echo "  [FAIL] README.md does not mention entry point '$$cmd_name'"; \
@@ -172,6 +172,42 @@ check-installable:
 	TOTAL=$$((PASS + FAIL)); \
 	echo "$$PASS/$$TOTAL tools fully installable and documented"
 
+check-scriptable:
+	@echo "Checking for [project.scripts] in all tools..."
+	@FAILED=0; \
+	for repo in $(REPOS); do \
+		case "$$repo" in \
+			"local-first-common/"|"local-first-mcp/"|"local-ai-tool-template/"|"pipeline-analysis/"|"claude-skills/") continue ;; \
+		esac; \
+		if [ -f "$$repo/pyproject.toml" ]; then \
+			if ! grep -q "^\[project\.scripts\]" "$$repo/pyproject.toml"; then \
+				echo "  [FAIL] $$repo is missing [project.scripts]"; \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	if [ $$FAILED -gt 0 ]; then \
+		echo ""; \
+		echo "✗ $$FAILED repo(s) are missing [project.scripts]. Run 'make fix-scriptable' to add defaults."; \
+		exit 1; \
+	else \
+		echo "✓ All tools have entry points defined."; \
+	fi
+
+fix-scriptable:
+	@echo "Adding default [project.scripts] to tools..."
+	@for repo in $(REPOS); do \
+		case "$$repo" in \
+			"local-first-common/"|"local-first-mcp/"|"local-ai-tool-template/"|"pipeline-analysis/"|"claude-skills/") continue ;; \
+		esac; \
+		if [ -f "$$repo/pyproject.toml" ] && ! grep -q "^\[project\.scripts\]" "$$repo/pyproject.toml"; then \
+			repo_name=$$(basename "$$repo"); \
+			pkg_name=$$(echo "$$repo_name" | tr '-' '_'); \
+			echo "  → Adding script '$$repo_name' to $$repo"; \
+			printf "\n[project.scripts]\n$$repo_name = \"$$pkg_name.logic:app\"\n" >> "$$repo/pyproject.toml"; \
+		fi; \
+	done
+
 help:
 	@echo "Usage:"
 	@echo "  make list          - List all tools in the workspace"
@@ -190,7 +226,9 @@ help:
 	@echo "  make check-hooks   - Check if git hooks are installed and up-to-date"
 	@echo "  make check-standards - Verify architectural rules across all tools"
 	@echo "  make check-installable - Validate every tool can be installed and has a documented entry point"
-	@echo "  make verify            - Full workspace health check (lint + tools + hooks + standards + coverage + installable)"
+	@echo "  make check-scriptable  - Verify all tools have [project.scripts] entry points"
+	@echo "  make fix-scriptable    - Add default entry points to tools that are missing them"
+	@echo "  make verify            - Full workspace health check (lint + tools + hooks + standards + coverage + installable + scriptable)"
 	@echo "  make pre-commit    - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
 	@echo "  make push          - Push all repositories to their remotes (prompts for confirmation)"
