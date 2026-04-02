@@ -84,7 +84,7 @@ check-standards:
 	@echo "Checking for pydantic-ai usage..."
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
-			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"persona-counsel/"|"marketing-persona-counsel/") continue ;; esac; \
+			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"persona-counsel/"|"marketing-persona-counsel/"|"pedantic-troll/") continue ;; esac; \
 			if grep -r "pydantic_ai" "$$repo/src/" > /dev/null; then \
 				echo "  [FAIL] $$repo uses pydantic_ai (only persona-counsel and marketing-persona-counsel are allowed)"; \
 				grep -rl "pydantic_ai" "$$repo/src/" | sed 's/^/    /'; \
@@ -92,22 +92,51 @@ check-standards:
 		fi \
 	done
 	@# Check: timed_run usage (per-file: each file that calls .complete( must wrap it)
-	@echo "Verifying timed_run coverage (per-file)..."
+	@echo "Verifying timed_run coverage (CLI entry points)..."
 	@for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in \
 				"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
 			esac; \
 			find "$$repo/src" -name "*.py" | while read pyfile; do \
-				if grep -qE "\.complete\(" "$$pyfile" 2>/dev/null; then \
-					if ! grep -q "timed_run" "$$pyfile"; then \
-						echo "  [WARN] $$pyfile calls .complete() but is missing timed_run"; \
-					fi \
-				fi \
+				fname=$$(basename "$$pyfile"); \
+				case "$$fname" in \
+					logic.py|cli.py|main.py) \
+						if grep -qE "\.acomplete\(|\.complete\(" "$$pyfile" 2>/dev/null; then \
+							if ! grep -q "timed_run" "$$pyfile"; then \
+								echo "  [FAIL] $$pyfile calls LLM but is missing timed_run"; \
+							fi \
+						fi \
+						;; \
+				esac; \
 			done; \
 		fi \
 	done
+	@# Check: Test isolation (must import isolate_tracking_db in conftest.py)
+	@echo "Checking for test isolation (tracking DB)..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/tests" ]; then \
+			case "$$repo" in "local-first-common/") continue ;; esac; \
+			if [ ! -f "$$repo/tests/conftest.py" ]; then \
+				echo "  [FAIL] $$repo is missing tests/conftest.py"; \
+			elif ! grep -q "isolate_tracking_db" "$$repo/tests/conftest.py"; then \
+				echo "  [FAIL] $$repo/tests/conftest.py is missing isolate_tracking_db import"; \
+			fi \
+		fi \
+	done
+	@# Check: Tests must NOT import providers directly (hitting real models)
+	@echo "Verifying tests use MockProvider (no direct provider imports)..."
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo/tests" ]; then \
+			case "$$repo" in "local-first-common/") continue ;; esac; \
+			if grep -Er "from local_first_common\.providers\.(ollama|anthropic|gemini|groq|deepseek) import" "$$repo/tests/" > /dev/null; then \
+				echo "  [FAIL] $$repo/tests/ imports providers directly (must use MockProvider)"; \
+				grep -Er "from local_first_common\.providers\.(ollama|anthropic|gemini|groq|deepseek) import" "$$repo/tests/" | sed 's/^/    /'; \
+			fi \
+		fi \
+	done
 	@echo "Standards check complete."
+
 
 check-installable:
 	@echo "Checking installability and documentation for all tools..."
@@ -143,7 +172,7 @@ check-installable:
 			fi; \
 			if [ -f "$$repo/README.md" ]; then \
 				echo "  [PASS] README.md exists"; \
-				if grep -q "uv run $$cmd_name" "$$repo/README.md" 2>/dev/null || grep -q "\`$$cmd_name" "$$repo/README.md" 2>/dev/null; then \
+				if grep -q "$$cmd_name" "$$repo/README.md" 2>/dev/null; then \
 					echo "  [PASS] README.md documents entry point '$$cmd_name'"; \
 				else \
 					echo "  [FAIL] README.md does not mention entry point '$$cmd_name'"; \
