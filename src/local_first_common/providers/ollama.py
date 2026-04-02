@@ -4,6 +4,7 @@ import logging
 import httpx
 
 from .base import BaseProvider
+from .errors import ModelNotFoundError, ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -125,14 +126,14 @@ class OllamaProvider(BaseProvider):
                 if response.status_code == 404:
                     installed = self._get_installed_model_names()
                     hint = f"Installed models: {installed}" if installed else "Run 'ollama list' to see installed models."
-                    raise RuntimeError(
+                    raise ModelNotFoundError(
                         f"Ollama model '{self.model}' not found. Pull it with 'ollama pull {self.model}'. "
                         f"{hint}. See {self.models_url}"
                     )
                 response.raise_for_status()
                 content = response.json().get("response", "")
         except httpx.RequestError as exc:
-            raise RuntimeError(
+            raise ConnectionError(
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
             )
 
@@ -159,7 +160,7 @@ class OllamaProvider(BaseProvider):
                 if response.status_code == 404:
                     installed = self._get_installed_model_names()
                     hint = f"Installed models: {installed}" if installed else "Run 'ollama list' to see installed models."
-                    raise RuntimeError(
+                    raise ModelNotFoundError(
                         f"Ollama model '{self.model}' not found. Pull it with 'ollama pull {self.model}'. "
                         f"{hint}. See {self.models_url}"
                     )
@@ -167,7 +168,7 @@ class OllamaProvider(BaseProvider):
                 data = response.json()
                 content = data.get("response", "")
         except httpx.RequestError as exc:
-            raise RuntimeError(
+            raise ConnectionError(
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
             )
 

@@ -10,6 +10,7 @@ from local_first_common.providers.ollama import OllamaProvider
 from local_first_common.providers.anthropic import AnthropicProvider
 from local_first_common.providers.groq import GroqProvider
 from local_first_common.providers.deepseek import DeepSeekProvider
+from local_first_common.providers.errors import ModelNotFoundError
 from local_first_common.providers.gemini import GeminiProvider
 
 
@@ -260,7 +261,7 @@ class TestOllamaProvider:
             p = OllamaProvider(model="no-such-model")
             p._get_installed_models = MagicMock(return_value=["llama3"])
 
-            with pytest.raises(RuntimeError, match="not found"):
+            with pytest.raises(ModelNotFoundError, match="not found"):
                 p.complete("sys", "usr")
 
 
