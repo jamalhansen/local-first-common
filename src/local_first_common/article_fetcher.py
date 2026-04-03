@@ -53,6 +53,8 @@ class FeedItem:
     source: str
     published: str = ""  # ISO date e.g. "2026-03-07", empty if unavailable
     found_at: str | None = None  # URL of the page/post where this link was first found
+    search_term: str | None = None  # The term used to discover this link
+    platform: str | None = None  # The platform where this link was discovered
 
 
 def _is_blocked(netloc: str, blocked_domains: frozenset[str]) -> bool:
@@ -70,6 +72,7 @@ def fetch_article_metadata(
     tool: Tool | None = None,
     source_url: str | None = None,
     source_platform: str | None = None,
+    search_term: str | None = None,
 ) -> FeedItem | None:
     """Fetch a URL and extract title and description from its HTML meta tags.
 
@@ -118,4 +121,6 @@ def fetch_article_metadata(
             source=source,
             published=metadata.published_date,
             found_at=source_url,
+            search_term=search_term,
+            platform=source_platform,
         )
