@@ -135,6 +135,36 @@ check-standards:
 			fi \
 		fi \
 	done
+	@# Check: Git hygiene (no junk/sensitive files tracked in index)
+	@echo "Checking Git index hygiene..."
+	@FORBIDDEN=".coverage .pytest_cache .ruff_cache .venv .DS_Store __pycache__ .env .envrc .cross-link-cache.db *.pyc *.pyo"; \
+	for repo in $(REPOS); do \
+		if [ -d "$$repo/.git" ]; then \
+			for pattern in $$FORBIDDEN; do \
+				tracked=$$(cd "$$repo" && git ls-files "$$pattern" 2>/dev/null); \
+				if [ -n "$$tracked" ]; then \
+					echo "  [FAIL] $$repo is tracking forbidden pattern: $$pattern"; \
+				fi \
+			done \
+		fi \
+	done
+	@# Check: .gitignore coverage
+	@echo "Verifying .gitignore coverage..."
+	@REQUIRED=".coverage .pytest_cache .ruff_cache .venv .DS_Store __pycache__ .env .envrc"; \
+	for repo in $(REPOS); do \
+		case "$$repo" in "claude-skills/"|"local-ai-tool-template/") continue ;; esac; \
+		if [ -d "$$repo" ]; then \
+			if [ ! -f "$$repo/.gitignore" ]; then \
+				echo "  [FAIL] $$repo is missing .gitignore"; \
+			else \
+				for pattern in $$REQUIRED; do \
+					if ! grep -q "$$pattern" "$$repo/.gitignore"; then \
+						echo "  [FAIL] $$repo/.gitignore is missing pattern: $$pattern"; \
+					fi \
+				done \
+			fi \
+		fi \
+	done
 	@echo "Standards check complete."
 
 
