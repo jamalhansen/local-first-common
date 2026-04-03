@@ -19,6 +19,53 @@ def _resolve_quality_db_path() -> Path:
     fallback_path = Path("~/.local/share/local-first/content_quality.db").expanduser()
     return fallback_path
 
+def resolve_sync_path(
+    tool_name: str, 
+    db_filename: str, 
+    env_var: Optional[str] = None,
+    local_migration_path: Optional[str | Path] = None,
+    custom_path: Optional[str | Path] = None
+) -> Path:
+    """Resolve a database path in the sync folder, with optional migration from a local path.
+    
+    Order of precedence:
+    1. Custom path (if provided)
+    2. Environment variable (if env_var is provided and set)
+    3. Sync folder: ~/sync/{tool_name}/{db_filename}
+    4. Local fallback: ~/.local/share/local-first/{tool_name}/{db_filename}
+    """
+    # 1. Custom override
+    if custom_path:
+        return Path(custom_path).expanduser()
+
+    # 2. Env var override
+    if env_var and (env := os.environ.get(env_var)):
+        return Path(env).expanduser()
+    
+    # 3. Sync path
+    sync_path = Path(f"~/sync/{tool_name}/{db_filename}").expanduser()
+    
+    # Optional migration from local project folder
+    if local_migration_path:
+        local_path = Path(local_migration_path).expanduser()
+        if local_path.exists() and not sync_path.exists():
+            import shutil
+            try:
+                sync_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(local_path, sync_path) # copy first for safety
+                local_path.unlink() # then delete
+                # We don't use print here to avoid noise in non-CLI contexts, 
+                # but we could log it if needed.
+            except Exception:
+                # If migration fails, fall back to local path for this run
+                return local_path
+
+    if sync_path.parent.exists() or Path("~/sync").expanduser().exists():
+        return sync_path
+        
+    # 3. Local fallback
+    return Path(f"~/.local/share/local-first/{tool_name}/{db_filename}").expanduser()
+
 # Standard paths for syncing across devices
 CONTENT_QUALITY_DB_PATH = _resolve_quality_db_path()
 

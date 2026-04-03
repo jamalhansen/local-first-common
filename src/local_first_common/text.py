@@ -46,6 +46,32 @@ def strip_html(html: str) -> str:
     return text
 
 
+def strip_code_blocks(text: str) -> str:
+    """Remove fenced and inline code blocks from markdown text."""
+    # Remove fenced code blocks (``` ... ```)
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    # Remove inline code blocks (` ... `)
+    text = re.sub(r"`[^`]+`", "", text)
+    return text
+
+
+def strip_markdown_links(text: str) -> str:
+    """Remove markdown and wiki links from text."""
+    # Remove markdown links: [anchor](url)
+    text = re.sub(r"\[[^\]]+\]\([^)]+\)", "", text)
+    # Remove wiki links: [[slug]] or [[slug|anchor]]
+    text = re.sub(r"\[\[[^\]]+\]\]", "", text)
+    return text
+
+
+def split_markdown_protected(text: str) -> list[str]:
+    """Split markdown body into chunks, alternating [text, protected, text, protected, ...].
+    Protected elements include fenced code, inline code, markdown links, and wiki links.
+    """
+    pattern = r"(```.*?```|`[^`]+`|\[[^\]]+\]\([^)]+\)|\[\[[^\]]+\]\])"
+    return re.split(pattern, text, flags=re.DOTALL)
+
+
 def looks_like_article(text: str, min_words: int = 200) -> bool:
     """Heuristic: does this look like the body of an article?
 

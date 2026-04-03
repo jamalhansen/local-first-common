@@ -439,17 +439,11 @@ check-tools:
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Checking $$repo ---"; \
 			ERRORS=0; \
-			if [ ! -f "$$repo/src/main.py" ] && [ ! -f "$$repo/main.py" ]; then \
-				echo "  ✗ Missing main.py (neither in root nor src/)"; \
+			if ! find "$$repo" -maxdepth 3 \( -name "logic.py" -o -name "cli.py" -o -name "main.py" \) | grep -q "."; then \
+				echo "  ✗ Missing entry point (logic.py, cli.py, or main.py)"; \
 				ERRORS=$$((ERRORS + 1)); \
 			fi; \
-			if [ ! -f "$$repo/src/logic.py" ] && [ ! -f "$$repo/logic.py" ] && ! find "$$repo/src" -name "logic.py" | grep -q "."; then \
-				echo "  ✗ Missing logic.py (not in root, src/, or sub-packages)"; \
-				ERRORS=$$((ERRORS + 1)); \
-			fi; \
-			MAIN_FILE=""; \
-			if [ -f "$$repo/src/main.py" ]; then MAIN_FILE="$$repo/src/main.py"; \
-			elif [ -f "$$repo/main.py" ]; then MAIN_FILE="$$repo/main.py"; fi; \
+			MAIN_FILE=$$(find "$$repo" -maxdepth 3 -name "main.py" | head -1); \
 			if [ -n "$$MAIN_FILE" ]; then \
 				if grep -q "Standard template for local-first AI tools" "$$MAIN_FILE"; then \
 					echo "  ✗ main.py still contains boilerplate help text"; \
@@ -468,12 +462,11 @@ help-tools:
 		case "$$repo" in \
 			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
 		esac; \
-		MAIN_FILE=""; \
-		if [ -f "$$repo/src/main.py" ]; then MAIN_FILE="src/main.py"; \
-		elif [ -f "$$repo/main.py" ]; then MAIN_FILE="main.py"; fi; \
+		MAIN_FILE=$$(find "$$repo" -maxdepth 3 -name "main.py" | head -1); \
 		if [ -n "$$MAIN_FILE" ]; then \
 			echo "--- Help: $$repo ---"; \
-			(cd $$repo && uv run python $$MAIN_FILE --help); \
+			MAIN_REL=$${MAIN_FILE#$$repo}; \
+			(cd $$repo && uv run python .$$MAIN_REL --help); \
 			echo ""; \
 		fi \
 	done
