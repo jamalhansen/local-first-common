@@ -167,6 +167,15 @@ check-standards:
 	done
 	@echo "Standards check complete."
 
+check-databases:
+	@echo "Checking for databases stored locally in tool folders (should be in ~/sync)..."
+	@for repo in $(REPOS); do \
+		found=$$(find "$$repo" -maxdepth 2 -name "*.db" -o -name "*.sqlite" -o -name "*.duckdb" | grep -v ".venv/" | grep -v ".pytest_cache/"); \
+		if [ -n "$$found" ]; then \
+			echo "  [WARN] $$repo has local database(s):"; \
+			echo "$$found" | sed 's/^/    /'; \
+		fi \
+	done
 
 check-installable:
 	@echo "Checking installability and documentation for all tools..."
@@ -287,6 +296,7 @@ help:
 	@echo "  make check-installable - Validate every tool can be installed and has a documented entry point"
 	@echo "  make check-scriptable  - Verify all tools have [project.scripts] entry points"
 	@echo "  make fix-scriptable    - Add default entry points to tools that are missing them"
+	@echo "  make check-databases   - Identify databases stored locally instead of in ~/sync"
 	@echo "  make verify            - Full workspace health check (lint + tools + hooks + standards + coverage + installable + scriptable)"
 	@echo "  make pre-commit    - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
