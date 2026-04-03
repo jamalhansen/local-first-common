@@ -93,3 +93,18 @@ class TestSaveToReadwise:
             save_to_readwise("tok_abc", "https://example.com/article", tags=[])
         _, kwargs = mock_post.call_args
         assert "tags" not in kwargs["json"]
+
+    def test_includes_discovery_metadata_as_tags(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+            save_to_readwise(
+                "tok_abc",
+                "https://example.com/article",
+                search_term="duckdb",
+                platform="bluesky",
+            )
+        _, kwargs = mock_post.call_args
+        tags = kwargs["json"]["tags"]
+        assert "term:duckdb" in tags
+        assert "platform:bluesky" in tags

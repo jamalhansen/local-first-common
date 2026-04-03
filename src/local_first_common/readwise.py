@@ -21,6 +21,8 @@ def save_to_readwise(
     summary: str = "",
     tags: list[str] | None = None,
     published_date: str = "",
+    search_term: str | None = None,
+    platform: str | None = None,
 ) -> bool:
     """Save a URL to the Readwise Reader inbox.
 
@@ -31,6 +33,8 @@ def save_to_readwise(
         summary:        Short summary shown in Reader (optional).
         tags:           List of tag strings (optional).
         published_date: ISO 8601 date string e.g. "2026-03-11" (optional).
+        search_term:    Discovery search term to add as a tag (optional).
+        platform:       Discovery platform to add as a tag (optional).
 
     Returns:
         True on success (HTTP 200 or 201), False on any error.
@@ -39,13 +43,20 @@ def save_to_readwise(
         logger.error("Readwise token is not set — cannot save to Reader")
         return False
 
+    # Deep copy/init tags list
+    all_tags = list(tags) if tags else []
+    if platform:
+        all_tags.append(f"platform:{platform}")
+    if search_term:
+        all_tags.append(f"term:{search_term}")
+
     payload: dict = {"url": url}
     if title:
         payload["title"] = title
     if summary:
         payload["summary"] = summary
-    if tags:
-        payload["tags"] = tags
+    if all_tags:
+        payload["tags"] = all_tags
     if published_date:
         payload["published_date"] = published_date
 
