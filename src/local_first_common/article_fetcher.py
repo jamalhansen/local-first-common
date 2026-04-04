@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 
 from local_first_common import html
 from local_first_common.tracking import Tool, tracked_fetch
-from local_first_common.url import clean_url
+from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ def fetch_article_metadata(
     source_url: str | None = None,
     source_platform: str | None = None,
     search_term: str | None = None,
+    session: any = None,
 ) -> FeedItem | None:
     """Fetch a URL and extract title and description from its HTML meta tags.
 
@@ -82,8 +83,11 @@ def fetch_article_metadata(
     When ``tool`` is provided the attempt is logged to the central fetch_log
     table via ``tracked_fetch``. ``source_url`` is the social post where this
     link was found; ``source_platform`` is e.g. ``'bluesky'`` or ``'mastodon'``.
+
+    If ``session`` is provided and has a ``mark_failed(url, status_code)`` method,
+    it is called on fetch failure.
     """
-    url = clean_url(url)
+    url = normalize_url(url)
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         logger.debug("Skipping invalid URL: %s", url)
@@ -99,16 +103,22 @@ def fetch_article_metadata(
     with tracked_fetch(_tool, url, source_url=source_url, source_platform=source_platform) as fetch:
         if fetch.html is None:
             logger.warning("Failed to fetch %s: %s", url, fetch.error_message)
+            if session and hasattr(session, "mark_failed"):
+                session.mark_failed(url, fetch.http_status)
             return None
 
         try:
             metadata = html.extract_metadata(fetch.html)
         except Exception as e:
             logger.warning("Failed to parse metadata for %s: %s", url, e)
+            if session and hasattr(session, "mark_failed"):
+                session.mark_failed(url)
             return None
 
         if not metadata.title:
             logger.warning("No title found for %s — skipping", url)
+            if session and hasattr(session, "mark_failed"):
+                session.mark_failed(url)
             return None
 
         fetch.title = metadata.title

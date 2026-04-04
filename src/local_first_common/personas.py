@@ -110,11 +110,17 @@ def load_any_persona(path: Path) -> BasePersona:
 
 
 def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
-    """Load a single persona by name (checking .yaml then .md). Raises FileNotFoundError if not found."""
+    """Load a single persona by name (checking .yaml then .md in a specific dir)."""
     directory = _personas_dir(personas_dir)
     yaml_path = directory / f"{name.lower()}.yaml"
     md_path = directory / f"{name.lower()}.md"
     
+    # Also check case-sensitive if lowercase fails
+    if not yaml_path.exists():
+        yaml_path = directory / f"{name}.yaml"
+    if not md_path.exists():
+        md_path = directory / f"{name}.md"
+
     if yaml_path.exists():
         return load_any_persona(yaml_path)
     if md_path.exists():
@@ -127,44 +133,139 @@ def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
     raise FileNotFoundError(f"Persona '{name}' not found at {directory}. {hint}")
 
 
-def list_personas(personas_dir: Optional[Path] = None) -> list[BasePersona]:
-    """Return all persona cards (.yaml and .md) from the personas directory, sorted by name."""
-    directory = _personas_dir(personas_dir)
-    if not directory.exists():
-        return []
+def get_persona(
+    name: str, 
+    category: str, 
+    vault_path: Optional[Path] = None, 
+    config_dir: Optional[Path] = None
+) -> BasePersona:
+    """Load a single persona by name and category. 
     
-    personas = []
-    # Load YAMLs
-    for yaml_file in directory.glob("*.yaml"):
+    Search order:
+    1. Obsidian vault: personas/{category}/{name}.md
+    2. Config dir: personas/{category}/{name}.yaml or .md
+    """
+    from .obsidian import find_vault_root
+    
+    # 1. Check Vault
+    try:
+        root = vault_path or find_vault_root()
+        vault_file = root / "personas" / category / f"{name}.md"
+        if not vault_file.exists():
+             # Try lowercase
+             vault_file = root / "personas" / category / f"{name.lower()}.md"
+        
+        if vault_file.exists():
+            return load_obsidian_persona(vault_file)
+    except Exception:
+        pass
+        
+    # 2. Check Config Fallback
+    base_config = config_dir or DEFAULT_PERSONAS_DIR
+    try:
+        return load_persona(name, personas_dir=base_config / category)
+    except FileNotFoundError:
+        # Try root of config as a secondary fallback
         try:
-            personas.append(load_any_persona(yaml_file))
-        except Exception:
-            pass
+            return load_persona(name, personas_dir=base_config)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Persona '{name}' not found in vault or config for category '{category}'.")
+
+
+def list_personas(
+    category: Optional[str] = None, 
+    vault_path: Optional[Path] = None, 
+    config_dir: Optional[Path] = None
+) -> list[BasePersona]:
+    """Return all persona cards from vault and config directory, sorted by name.
+    
+    If category is provided, searches in personas/{category}/ subfolders.
+    Otherwise, searches in the root of the personas directory (Legacy/Flat mode).
+    """
+    from .obsidian import find_vault_root
+    
+    personas_dict = {}
+    
+    # 1. Check Vault
+    try:
+        root = vault_path or find_vault_root()
+        vault_dir = root / "personas"
+        if category:
+            vault_dir = vault_dir / category
             
-    # Load MDs
-    for md_file in directory.glob("*.md"):
-        try:
-            personas.append(load_any_persona(md_file))
-        except Exception:
-            pass
-            
-    return sorted(personas, key=lambda p: p.name.lower())
+        if vault_dir.exists():
+            for md_file in vault_dir.glob("*.md"):
+                try:
+                    p = load_obsidian_persona(md_file)
+                    # If category is specified, we might want to filter by frontmatter too
+                    if category:
+                        # User specified category: "[[Persona]]" check
+                        cat_field = p.metadata.get("category", "")
+                        # Handle both string and list/link formats
+                        if isinstance(cat_field, str):
+                             if "[[Persona]]" not in cat_field and cat_field != "Persona":
+                                 # For some categories we might be more lenient, 
+                                 # but if they are in the folder, they are likely personas.
+                                 pass 
+                    
+                    personas_dict[p.name.lower()] = p
+                except Exception:
+                    pass
+    except Exception:
+        pass
+        
+    # 2. Check Config Fallback
+    base_config = config_dir or DEFAULT_PERSONAS_DIR
+    config_search_dir = base_config
+    if category:
+        config_search_dir = base_config / category
+        
+    if config_search_dir.exists():
+        # Load YAMLs
+        for yaml_file in config_search_dir.glob("*.yaml"):
+            try:
+                p = load_any_persona(yaml_file)
+                name_key = p.name.lower()
+                if name_key not in personas_dict:
+                    personas_dict[name_key] = p
+            except Exception:
+                pass
+                
+        # Load MDs
+        for md_file in config_search_dir.glob("*.md"):
+            try:
+                p = load_any_persona(md_file)
+                name_key = p.name.lower()
+                if name_key not in personas_dict:
+                    personas_dict[name_key] = p
+            except Exception:
+                pass
+                
+    return sorted(personas_dict.values(), key=lambda p: p.name.lower())
 
 
 def load_obsidian_persona(path: Path) -> BasePersona:
-    """Parse an Obsidian persona markdown file."""
-    content = path.read_text(encoding="utf-8")
+    """Parse an Obsidian persona markdown file using frontmatter."""
+    try:
+        post = frontmatter.load(path)
+        content = post.content
+        fm = post.metadata
+    except Exception as e:
+        logger.warning(f"Failed to load frontmatter from {path}: {e}")
+        # Fallback to simple read
+        content = path.read_text(encoding="utf-8")
+        fm = {}
     
-    # Extract Name from filename or H1
-    name = path.stem
+    # Extract Name from filename or fm or H1
+    name = fm.get("name") or path.stem
     h1_match = re.search(r"^# (.*)$", content, re.MULTILINE)
-    if h1_match:
+    if h1_match and not fm.get("name"):
         name = h1_match.group(1).strip()
         
     # Extract Archetype
-    archetype = "General Reader"
+    archetype = fm.get("archetype") or "General Reader"
     archetype_match = re.search(r"\*\*Archetype:\*\* (.*)$", content, re.MULTILINE)
-    if archetype_match:
+    if archetype_match and not fm.get("archetype"):
         archetype = archetype_match.group(1).strip()
         
     # Extract System Prompt Seed
@@ -185,31 +286,21 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         else:
             system_prompt = f"You are {name}, {archetype}."
 
+    metadata = {"path": str(path), "source": "obsidian"}
+    metadata.update(fm)
+
     return BasePersona(
         name=name,
         archetype=archetype,
         system_prompt=system_prompt,
-        metadata={"path": str(path), "source": "obsidian"}
+        domain=fm.get("domain", ""),
+        metadata=metadata
     )
 
 
 def list_vault_personas(category: str, vault_path: Optional[Path] = None) -> list[BasePersona]:
     """List all personas in a specific obsidian category (under personas/{category})."""
-    from .obsidian import find_vault_root
-    
-    root = vault_path or find_vault_root()
-    persona_dir = root / "personas" / category
-    if not persona_dir.exists():
-        return []
-        
-    personas = []
-    for md_file in persona_dir.glob("*.md"):
-        try:
-            personas.append(load_obsidian_persona(md_file))
-        except Exception as e:
-            logger.warning("Failed to load persona %s: %s", md_file, e)
-            
-    return sorted(personas, key=lambda p: p.name.lower())
+    return list_personas(category=category, vault_path=vault_path)
 
 
 def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[BasePersona]:

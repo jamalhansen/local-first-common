@@ -80,28 +80,36 @@ class TestLoadPersona:
 
 class TestListPersonas:
     def test_empty_dir_returns_empty_list(self, tmp_path):
-        result = list_personas(personas_dir=tmp_path)
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        result = list_personas(config_dir=tmp_path, vault_path=vault)
         assert result == []
 
     def test_nonexistent_dir_returns_empty_list(self, tmp_path):
-        result = list_personas(personas_dir=tmp_path / "missing")
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        result = list_personas(config_dir=tmp_path / "missing", vault_path=vault)
         assert result == []
 
     def test_lists_all_personas(self, tmp_path):
+        vault = tmp_path / "vault"
+        vault.mkdir()
         second = {**MINIMAL_PERSONA, "name": "Secondus"}
         _write_persona(tmp_path, MINIMAL_PERSONA)
         _write_persona(tmp_path, second)
-        cards = list_personas(personas_dir=tmp_path)
+        cards = list_personas(config_dir=tmp_path, vault_path=vault)
         assert len(cards) == 2
         names = [c.name for c in cards]
         assert "Testus" in names
         assert "Secondus" in names
 
     def test_returns_sorted_by_filename(self, tmp_path):
+        vault = tmp_path / "vault"
+        vault.mkdir()
         alpha = {**MINIMAL_PERSONA, "name": "Alpha"}
         zeta = {**MINIMAL_PERSONA, "name": "Zeta"}
         _write_persona(tmp_path, zeta)
         _write_persona(tmp_path, alpha)
-        cards = list_personas(personas_dir=tmp_path)
+        cards = list_personas(config_dir=tmp_path, vault_path=vault)
         assert cards[0].name == "Alpha"
         assert cards[1].name == "Zeta"

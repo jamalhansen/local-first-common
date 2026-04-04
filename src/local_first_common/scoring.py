@@ -59,7 +59,7 @@ class BaseScorer:
         """
         try:
             raw = provider.complete(self.system_prompt, user_message)
-        except RuntimeError as e:
+        except Exception as e:
             logger.warning("Provider error during scoring: %s", e)
             return None
         return self._parse_response(raw)

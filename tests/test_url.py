@@ -1,4 +1,4 @@
-from local_first_common.url import clean_url
+from local_first_common.url import clean_url, normalize_url
 
 
 class TestCleanUrl:
@@ -13,9 +13,8 @@ class TestCleanUrl:
     def test_preserves_non_tracking_params(self):
         url = "https://example.com/search?q=python&page=2&utm_source=google"
         result = clean_url(url)
-        assert "q=python" in result
-        assert "page=2" in result
-        assert "utm_source" not in result
+        # Sort order: page=2, q=python
+        assert result == "https://example.com/search?page=2&q=python"
 
     def test_strips_fbclid(self):
         url = "https://example.com/page?fbclid=abc123"
@@ -45,3 +44,33 @@ class TestCleanUrl:
         result = clean_url(url)
         assert "utm_source" not in result
         assert "#section" in result
+
+
+class TestNormalizeUrl:
+    def test_lowercases_scheme_and_netloc(self):
+        url = "HTTPS://Example.COM/Page"
+        assert normalize_url(url) == "https://example.com/Page"
+
+    def test_strips_trailing_slash(self):
+        url = "https://example.com/path/"
+        assert normalize_url(url) == "https://example.com/path"
+
+    def test_preserves_root_slash_as_empty(self):
+        # urlparse("https://example.com/").path is "/"
+        # rstrip("/") makes it ""
+        url = "https://example.com/"
+        assert normalize_url(url) == "https://example.com"
+
+    def test_cleans_tracking_params(self):
+        url = "https://example.com/path/?utm_source=twitter"
+        assert normalize_url(url) == "https://example.com/path"
+
+    def test_forces_https_for_hn(self):
+        url = "http://news.ycombinator.com/item?id=123"
+        assert normalize_url(url) == "https://news.ycombinator.com/item?id=123"
+
+    def test_handles_complex_hn_url(self):
+        url = "HTTP://news.ycombinator.com/ITEM?id=456&utm_source=social/"
+        # item becomes lowercased if it was part of netloc, but it's part of path.
+        # normalize_url only lowercases scheme and netloc.
+        assert normalize_url(url) == "https://news.ycombinator.com/ITEM?id=456"
