@@ -258,34 +258,38 @@ DB: `~/sync/local-first/processing_log.duckdb` (override: `LOCAL_FIRST_TRACKING_
 
 ## Workspace Orchestration
 
-This repository contains a `Makefile.workspace` designed to manage the entire local-first AI toolkit from the workspace root. 
+The workspace Makefile lives at `~/projects/local-first/Makefile`. Run these from that directory:
 
-### Setup
+- `make list` — show all tools in the workspace
+- `make sync` — `uv sync` across all projects
+- `make test` — run all test suites
+- `make check` — ruff lint across the workspace
+- `make verify` — full health check with summary (lint, tools, hooks, standards, coverage, installable, scriptable)
+- `make status` — repos with uncommitted changes
+- `make unpushed` — repos with unpushed commits
 
-To use the global commands, create a symlink in your workspace root:
+`Makefile.workspace` in this repo is kept in sync as a reference copy.
 
-```bash
-ln -s local-first-common/Makefile.workspace Makefile
-```
+## Git hooks
 
-### Available Commands
+Hooks for local-first repos extend the general Python hooks in `~/projects/py-tooling` with local-first-specific checks (direct LLM import enforcement, duplicate `register_tool` detection).
 
-Run these from the workspace root:
-
-- `make list`: Show all tools in the workspace.
-- `make sync`: Run `uv sync` across all projects.
-- `make test`: Run all test suites.
-- `make check`: Run `ruff` linting across the workspace.
-- `make pre-commit`: Run all verification steps (ruff, tests, security) for all projects.
-- `make status`: Show which sub-repositories have uncommitted changes.
-- `make verify`: Ensure all tools strictly adhere to the `main.py` entry point standard.
-
-## Pre-push security hooks
-
-Install secret scanning and path sanitization hooks across all repos:
+Install in all local-first repos:
 
 ```bash
 python3 install_hooks.py --all
+```
+
+Install in a specific repo:
+
+```bash
+python3 install_hooks.py --repo path/to/repo
+```
+
+For general Python projects outside local-first, use py-tooling's installer directly:
+
+```bash
+python3 ~/projects/py-tooling/install_hooks.py --repo path/to/repo
 ```
 
 ## Adding a new provider

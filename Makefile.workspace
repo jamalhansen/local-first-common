@@ -378,9 +378,25 @@ check:
 		fi \
 	done
 
-verify: check check-tools check-hooks check-standards check-coverage check-installable
-	@echo ""
-	@echo "✓ Full workspace verification complete."
+verify:
+	@FAIL=0; SUMMARY=""; \
+	for check in check check-tools check-hooks check-standards check-coverage check-installable check-scriptable; do \
+		echo ""; \
+		echo "┌─── $$check"; \
+		$(MAKE) $$check --no-print-directory; RC=$$?; \
+		if [ $$RC -eq 0 ]; then SUMMARY="$$SUMMARY  ✓ $$check\n"; \
+		else SUMMARY="$$SUMMARY  ✗ $$check\n"; FAIL=$$((FAIL+1)); fi; \
+	done; \
+	echo ""; \
+	echo "════════════════════════════════════════"; \
+	echo "  Workspace Verify Summary"; \
+	echo "════════════════════════════════════════"; \
+	printf "$$SUMMARY"; \
+	echo "────────────────────────────────────────"; \
+	if [ $$FAIL -eq 0 ]; then echo "  ✓ All checks passed"; \
+	else echo "  ✗ $$FAIL check(s) failed"; fi; \
+	echo "════════════════════════════════════════"; \
+	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
 fix:
 	@for repo in $(REPOS); do \
@@ -472,7 +488,7 @@ help-tools:
 	done
 
 check-hooks:
-	@HOOK_VERSION=$$(grep "HOOK_VERSION =" local-first-common/install_hooks.py | cut -d'"' -f2); \
+	@HOOK_VERSION=$$(grep "HOOK_VERSION =" local-first-common/install_hooks.py | cut -d'"' -f2 | head -1); \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
 			echo "--- Checking hooks: $$repo ---"; \

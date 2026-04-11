@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.3"
+HOOK_VERSION = "1.4"
 
 PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
