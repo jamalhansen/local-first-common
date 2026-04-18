@@ -211,3 +211,7 @@ def list_tools():
 
 if __name__ == "__main__":
     app()
+
+def pipe_option():
+    """Option for pipe-friendly output (stdout only has result)."""
+    return typer.Option(False, "--pipe", help="Output only the resulting path to stdout (silences other logs).")
