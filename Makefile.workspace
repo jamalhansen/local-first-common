@@ -3,7 +3,7 @@
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 VERIFY_LOG ?= /tmp/make-verify-latest.log
 
-.PHONY: list test sync check fix verify verify-failures verify-failures-from-log status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -313,6 +313,7 @@ help:
 	@echo "  make verify            - Full workspace health check (lint + tools + hooks + standards + coverage + installable + scriptable)"
 	@echo "  make verify-failures   - Run verify and print only fail/error-style lines from the captured log"
 	@echo "  make verify-failures-from-log - Print fail/error-style lines from an existing verify log"
+	@echo "  make verify-failure-summary - Summarize verify failures by repo from an existing verify log"
 	@echo "  make pre-commit    - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
 	@echo "  make push          - Push all repositories to their remotes (prompts for confirmation)"
@@ -435,6 +436,20 @@ verify-failures-from-log:
 	@echo "Verify log: $(VERIFY_LOG)"
 	@echo "--- Extracted fail/error lines ---"
 	@grep -nE "FAIL|ERROR|error:|✗|fatal" $(VERIFY_LOG) || echo "No fail/error lines found."
+	@echo "--- End ---"
+
+verify-failure-summary:
+	@if [ ! -f "$(VERIFY_LOG)" ]; then \
+		echo "Verify log not found: $(VERIFY_LOG)"; \
+		exit 1; \
+	fi
+	@echo "Verify log: $(VERIFY_LOG)"
+	@echo "--- Hook mismatch repos ---"
+	@awk '/^--- Checking hooks: / {repo=$$4; gsub("/", "", repo)} /✗ pre-commit is OUTDATED or modified/ {print repo}' $(VERIFY_LOG) | sort -u || true
+	@echo "--- Coverage failures ---"
+	@awk '/--- Coverage: / {cov=$$3; gsub("/", "", cov)} /FAIL Required test coverage/ {print cov ": " $$0}' $(VERIFY_LOG) || true
+	@echo "--- Other explicit errors ---"
+	@grep -nE "ERROR|error:|fatal" $(VERIFY_LOG) || echo "No explicit error/fatal lines found."
 	@echo "--- End ---"
 
 fix:
