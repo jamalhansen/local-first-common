@@ -1,9 +1,12 @@
 import os
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 import httpx
 
 from .base import BaseProvider
+
+logger = logging.getLogger(__name__)
 
 
 class GroqProvider(BaseProvider):
@@ -16,7 +19,12 @@ class GroqProvider(BaseProvider):
     models_url = "https://console.groq.com/docs/models"
     _api_url = "https://api.groq.com/openai/v1/chat/completions"
 
-    def __init__(self, model: Optional[str] = None, debug: bool = False, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        debug: bool = False,
+        api_key: Optional[str] = None,
+    ):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("GROQ_API_KEY")
         if not self.api_key:
@@ -26,7 +34,9 @@ class GroqProvider(BaseProvider):
         self.input_tokens: int = 0
         self.output_tokens: int = 0
 
-    def _build_payload(self, system: str, user: str, template: str, is_json: bool) -> Dict[str, Any]:
+    def _build_payload(
+        self, system: str, user: str, template: str, is_json: bool
+    ) -> Dict[str, Any]:
         actual_system = system
         if template:
             actual_system += f"\n\nYou MUST return a valid JSON object matching this structure:\n{template}\nDO NOT include any other text."
@@ -53,7 +63,10 @@ class GroqProvider(BaseProvider):
         self._debug_print_request(template, system, user)
 
         payload = self._build_payload(system, user, template, bool(response_model))
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
         try:
             with httpx.Client(timeout=120.0) as client:
@@ -67,15 +80,46 @@ class GroqProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             err = str(e)
             if "model" in err.lower():
+                logger.warning(
+                    "Groq model lookup failed for %s: %s",
+                    self.model,
+                    e,
+                    extra={
+                        "run_context": "provider_model_not_found",
+                        "source_location": self.model,
+                    },
+                )
                 raise RuntimeError(
                     f"Groq model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
                 )
+            logger.warning(
+                "Groq API HTTP error for %s: %s",
+                self.model,
+                e,
+                extra={
+                    "run_context": "provider_http_error",
+                    "source_location": self.model,
+                },
+            )
             raise RuntimeError(f"Groq API error: {e}")
         except Exception as e:
+            logger.warning(
+                "Groq request failed for %s: %s",
+                self.model,
+                e,
+                extra={
+                    "run_context": "provider_request_error",
+                    "source_location": self.model,
+                },
+            )
             raise RuntimeError(f"Groq request failed: {e}")
 
-        result = self._parse_json_response(content, response_model) if response_model else content
+        result = (
+            self._parse_json_response(content, response_model)
+            if response_model
+            else content
+        )
         self._debug_print_response(result)
         return result
 
@@ -90,11 +134,16 @@ class GroqProvider(BaseProvider):
         self._debug_print_request(template, system, user)
 
         payload = self._build_payload(system, user, template, bool(response_model))
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(self._api_url, json=payload, headers=headers)
+                response = await client.post(
+                    self._api_url, json=payload, headers=headers
+                )
                 response.raise_for_status()
                 data = response.json()
                 usage = data.get("usage", {})
@@ -104,14 +153,45 @@ class GroqProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             err = str(e)
             if "model" in err.lower():
+                logger.warning(
+                    "Groq model lookup failed for %s: %s",
+                    self.model,
+                    e,
+                    extra={
+                        "run_context": "provider_model_not_found_async",
+                        "source_location": self.model,
+                    },
+                )
                 raise RuntimeError(
                     f"Groq model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
                 )
+            logger.warning(
+                "Groq API HTTP error for %s: %s",
+                self.model,
+                e,
+                extra={
+                    "run_context": "provider_http_error_async",
+                    "source_location": self.model,
+                },
+            )
             raise RuntimeError(f"Groq API error: {e}")
         except Exception as e:
+            logger.warning(
+                "Groq request failed for %s: %s",
+                self.model,
+                e,
+                extra={
+                    "run_context": "provider_request_error_async",
+                    "source_location": self.model,
+                },
+            )
             raise RuntimeError(f"Groq request failed: {e}")
 
-        result = self._parse_json_response(content, response_model) if response_model else content
+        result = (
+            self._parse_json_response(content, response_model)
+            if response_model
+            else content
+        )
         self._debug_print_response(result)
         return result

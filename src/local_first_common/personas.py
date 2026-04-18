@@ -1,4 +1,5 @@
 """Persona store: load YAML or Markdown persona files into a unified BasePersona model."""
+
 import logging
 import os
 import re
@@ -18,6 +19,7 @@ DEFAULT_PERSONAS_DIR = Path(
 
 class BasePersona(BaseModel):
     """A unified persona model that works across YAML and Obsidian Markdown sources."""
+
     name: str
     archetype: str
     system_prompt: str
@@ -27,6 +29,7 @@ class BasePersona(BaseModel):
 
 class ObsidianPersona(BasePersona):
     """Legacy model for Obsidian personas — now just an alias for BasePersona."""
+
     pass
 
 
@@ -39,7 +42,9 @@ class PersonaCard(BaseModel):
     name: str
     archetype: str
     domain: str
-    princilege: str = "" # Some cards use principle, some use privileage, handle mapping if needed
+    princilege: str = (
+        ""  # Some cards use principle, some use privileage, handle mapping if needed
+    )
     principle: str = ""
     lens: str
     bias: PersonaBias
@@ -56,22 +61,24 @@ class PersonaCard(BaseModel):
             archetype=self.archetype,
             system_prompt=self.system_prompt,
             domain=self.domain,
-            metadata={"source": "yaml"}
+            metadata={"source": "yaml"},
         )
 
 
 def get_brand_voice(path: Optional[Path] = None) -> str:
     """Load brand voice from a file. Returns empty string if not found.
-    
+
     This ensures personal style guides stay out of the repository.
     Optimizes by extracting 'The Short Version' or 'Writing Style' sections if they exist.
     """
     from .config import get_setting
-    
-    voice_path = path or get_setting("local-first-common", "brand_voice_path", env_var="BRAND_VOICE_PATH")
+
+    voice_path = path or get_setting(
+        "local-first-common", "brand_voice_path", env_var="BRAND_VOICE_PATH"
+    )
     if not voice_path or not Path(voice_path).exists():
         return ""
-        
+
     path_obj = Path(voice_path)
     try:
         post = frontmatter.load(str(path_obj))
@@ -114,7 +121,7 @@ def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
     directory = _personas_dir(personas_dir)
     yaml_path = directory / f"{name.lower()}.yaml"
     md_path = directory / f"{name.lower()}.md"
-    
+
     # Also check case-sensitive if lowercase fails
     if not yaml_path.exists():
         yaml_path = directory / f"{name}.yaml"
@@ -125,41 +132,52 @@ def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
         return load_any_persona(yaml_path)
     if md_path.exists():
         return load_any_persona(md_path)
-        
+
     available = []
     if directory.exists():
-        available = sorted(p.stem for p in directory.glob("*") if p.suffix in (".yaml", ".md"))
+        available = sorted(
+            p.stem for p in directory.glob("*") if p.suffix in (".yaml", ".md")
+        )
     hint = f"Available: {', '.join(available)}" if available else "No personas found."
     raise FileNotFoundError(f"Persona '{name}' not found at {directory}. {hint}")
 
 
 def get_persona(
-    name: str, 
-    category: str, 
-    vault_path: Optional[Path] = None, 
-    config_dir: Optional[Path] = None
+    name: str,
+    category: str,
+    vault_path: Optional[Path] = None,
+    config_dir: Optional[Path] = None,
 ) -> BasePersona:
-    """Load a single persona by name and category. 
-    
+    """Load a single persona by name and category.
+
     Search order:
     1. Obsidian vault: personas/{category}/{name}.md
     2. Config dir: personas/{category}/{name}.yaml or .md
     """
     from .obsidian import find_vault_root
-    
+
     # 1. Check Vault
     try:
         root = vault_path or find_vault_root()
         vault_file = root / "personas" / category / f"{name}.md"
         if not vault_file.exists():
-             # Try lowercase
-             vault_file = root / "personas" / category / f"{name.lower()}.md"
-        
+            # Try lowercase
+            vault_file = root / "personas" / category / f"{name.lower()}.md"
+
         if vault_file.exists():
             return load_obsidian_persona(vault_file)
-    except Exception:
-        pass
-        
+    except Exception as e:
+        logger.warning(
+            "Vault persona lookup failed for %s/%s: %s",
+            category,
+            name,
+            e,
+            extra={
+                "run_context": "persona_vault_lookup",
+                "source_location": str(vault_path) if vault_path else None,
+            },
+        )
+
     # 2. Check Config Fallback
     base_config = config_dir or DEFAULT_PERSONAS_DIR
     try:
@@ -169,30 +187,32 @@ def get_persona(
         try:
             return load_persona(name, personas_dir=base_config)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Persona '{name}' not found in vault or config for category '{category}'.")
+            raise FileNotFoundError(
+                f"Persona '{name}' not found in vault or config for category '{category}'."
+            )
 
 
 def list_personas(
-    category: Optional[str] = None, 
-    vault_path: Optional[Path] = None, 
-    config_dir: Optional[Path] = None
+    category: Optional[str] = None,
+    vault_path: Optional[Path] = None,
+    config_dir: Optional[Path] = None,
 ) -> list[BasePersona]:
     """Return all persona cards from vault and config directory, sorted by name.
-    
+
     If category is provided, searches in personas/{category}/ subfolders.
     Otherwise, searches in the root of the personas directory (Legacy/Flat mode).
     """
     from .obsidian import find_vault_root
-    
+
     personas_dict = {}
-    
+
     # 1. Check Vault
     try:
         root = vault_path or find_vault_root()
         vault_dir = root / "personas"
         if category:
             vault_dir = vault_dir / category
-            
+
         if vault_dir.exists():
             for md_file in vault_dir.glob("*.md"):
                 try:
@@ -203,23 +223,42 @@ def list_personas(
                         cat_field = p.metadata.get("category", "")
                         # Handle both string and list/link formats
                         if isinstance(cat_field, str):
-                             if "[[Persona]]" not in cat_field and cat_field != "Persona":
-                                 # For some categories we might be more lenient, 
-                                 # but if they are in the folder, they are likely personas.
-                                 pass 
-                    
+                            if (
+                                "[[Persona]]" not in cat_field
+                                and cat_field != "Persona"
+                            ):
+                                # For some categories we might be more lenient,
+                                # but if they are in the folder, they are likely personas.
+                                pass
+
                     personas_dict[p.name.lower()] = p
-                except Exception:
-                    pass
-    except Exception:
-        pass
-        
+                except Exception as e:
+                    logger.warning(
+                        "Skipping invalid vault persona file %s: %s",
+                        md_file,
+                        e,
+                        extra={
+                            "run_context": "persona_list_vault_file",
+                            "source_location": str(md_file),
+                        },
+                    )
+    except Exception as e:
+        logger.warning(
+            "Vault persona listing failed for category %s: %s",
+            category,
+            e,
+            extra={
+                "run_context": "persona_list_vault",
+                "source_location": str(vault_path) if vault_path else None,
+            },
+        )
+
     # 2. Check Config Fallback
     base_config = config_dir or DEFAULT_PERSONAS_DIR
     config_search_dir = base_config
     if category:
         config_search_dir = base_config / category
-        
+
     if config_search_dir.exists():
         # Load YAMLs
         for yaml_file in config_search_dir.glob("*.yaml"):
@@ -228,9 +267,17 @@ def list_personas(
                 name_key = p.name.lower()
                 if name_key not in personas_dict:
                     personas_dict[name_key] = p
-            except Exception:
-                pass
-                
+            except Exception as e:
+                logger.warning(
+                    "Skipping invalid config persona YAML %s: %s",
+                    yaml_file,
+                    e,
+                    extra={
+                        "run_context": "persona_list_config_yaml",
+                        "source_location": str(yaml_file),
+                    },
+                )
+
         # Load MDs
         for md_file in config_search_dir.glob("*.md"):
             try:
@@ -238,9 +285,17 @@ def list_personas(
                 name_key = p.name.lower()
                 if name_key not in personas_dict:
                     personas_dict[name_key] = p
-            except Exception:
-                pass
-                
+            except Exception as e:
+                logger.warning(
+                    "Skipping invalid config persona markdown %s: %s",
+                    md_file,
+                    e,
+                    extra={
+                        "run_context": "persona_list_config_md",
+                        "source_location": str(md_file),
+                    },
+                )
+
     return sorted(personas_dict.values(), key=lambda p: p.name.lower())
 
 
@@ -255,26 +310,26 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         # Fallback to simple read
         content = path.read_text(encoding="utf-8")
         fm = {}
-    
+
     # Extract Name from filename or fm or H1
     name = fm.get("name") or path.stem
     h1_match = re.search(r"^# (.*)$", content, re.MULTILINE)
     if h1_match and not fm.get("name"):
         name = h1_match.group(1).strip()
-        
+
     # Extract Archetype
     archetype = fm.get("archetype") or "General Reader"
     archetype_match = re.search(r"\*\*Archetype:\*\* (.*)$", content, re.MULTILINE)
     if archetype_match and not fm.get("archetype"):
         archetype = archetype_match.group(1).strip()
-        
+
     # Extract System Prompt Seed
     system_prompt = ""
     # Look for the blockquote under "System Prompt Seed"
     seed_match = re.search(
-        r"## System Prompt Seed\s*\n+>\s*(.*?)(?=\n\n|\n#|$)", 
-        content, 
-        re.DOTALL | re.IGNORECASE
+        r"## System Prompt Seed\s*\n+>\s*(.*?)(?=\n\n|\n#|$)",
+        content,
+        re.DOTALL | re.IGNORECASE,
     )
     if seed_match:
         system_prompt = seed_match.group(1).strip().replace("\n> ", " ")
@@ -282,7 +337,9 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         # Fallback: use the "Lens" or "Identity" if seed is missing
         lens_match = re.search(r"## Lens\s*\n+(.*?)(?=\n##|$)", content, re.DOTALL)
         if lens_match:
-            system_prompt = f"You are {name}, {archetype}. {lens_match.group(1).strip()}"
+            system_prompt = (
+                f"You are {name}, {archetype}. {lens_match.group(1).strip()}"
+            )
         else:
             system_prompt = f"You are {name}, {archetype}."
 
@@ -294,15 +351,19 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         archetype=archetype,
         system_prompt=system_prompt,
         domain=fm.get("domain", ""),
-        metadata=metadata
+        metadata=metadata,
     )
 
 
-def list_vault_personas(category: str, vault_path: Optional[Path] = None) -> list[BasePersona]:
+def list_vault_personas(
+    category: str, vault_path: Optional[Path] = None
+) -> list[BasePersona]:
     """List all personas in a specific obsidian category (under personas/{category})."""
     return list_personas(category=category, vault_path=vault_path)
 
 
-def list_obsidian_personas(category: str = "brand", vault_path: Optional[Path] = None) -> list[BasePersona]:
+def list_obsidian_personas(
+    category: str = "brand", vault_path: Optional[Path] = None
+) -> list[BasePersona]:
     """List all personas in a specific obsidian category. Legacy alias for list_vault_personas."""
     return list_vault_personas(category, vault_path)

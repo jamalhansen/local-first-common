@@ -46,6 +46,30 @@ python3 install_hooks.py --all
 
 ## Changes Log
 
+### 2026-04-18 — Tracking swallow paths now emit structured warnings
+
+**Changed:** Updated `tracking.py` to log structured `WARNING` records (with `run_context` and `source_location`) for previously silent failure paths: `log_run()` insert failures, `timed_run` persistence failures, `register_tool()` registration failures, `tracked_fetch` insert failures, and `usage()` metadata extraction errors.
+
+**Because:** A failed council run was hard to verify after the fact due to logging blind spots. Some tracking failures only emitted `warnings.warn` or were swallowed with `pass`, so they could be missed in operational analysis.
+
+**Learned:** Non-raising telemetry code still needs durable visibility. Emitting both Python warnings and structured logger warnings preserves safety (never crash caller) while making failures queryable in `operational_log` when persistent logging is enabled.
+
+### 2026-04-18 — Provider wrappers now log API/model/parse retry signals
+
+**Changed:** Added structured warning logs in `providers/base.py` and individual provider adapters (`ollama`, `anthropic`, `groq`, `deepseek`, `gemini`) for model-not-found branches, HTTP/request failures, schema-retry loops, and JSON parse fallback failures.
+
+**Because:** Provider wrappers were re-raising clean RuntimeErrors but often lacked durable context about where failures happened. This made postmortems harder when a run failed under strict schema validation.
+
+**Learned:** Logging before re-raise gives both user-facing clarity (exception message) and ops visibility (context-rich warning row) without changing control flow.
+
+### 2026-04-18 — Added provider failure ops script
+
+**Changed:** Added `scripts/provider_failure_report.py` to summarize provider-related operational failures by `run_context`, model (`source_location`), and recent examples over a configurable lookback window.
+
+**Because:** Once provider-layer warning logging was added, a focused query entrypoint was needed to inspect those signals quickly without crafting ad-hoc SQL each time.
+
+**Learned:** A small, dedicated ops script speeds incident triage and makes cross-tool provider reliability easier to monitor.
+
 ### 2026-04-18 — Workspace-wide Annotated migration (forced)
 
 **Changed:** All 16 tool repos migrated from `param: type = helper()` to `param: Annotated[type, helper()] = default`.

@@ -55,12 +55,26 @@ class BaseProvider(ABC):
         """
         for attempt in range(rate_limit_retries + 1):
             try:
-                return self._complete(system, user, response_model=response_model, images=images)
+                return self._complete(
+                    system, user, response_model=response_model, images=images
+                )
             except Exception as e:
                 if self._is_rate_limit_error(e) and attempt < rate_limit_retries:
-                    wait = 5 * (2 ** attempt)
-                    logger.warning("Rate limited (429). Waiting %ds before retry %d/%d.", wait, attempt + 1, rate_limit_retries)
-                    print(f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...", flush=True)
+                    wait = 5 * (2**attempt)
+                    logger.warning(
+                        "Rate limited (429). Waiting %ds before retry %d/%d.",
+                        wait,
+                        attempt + 1,
+                        rate_limit_retries,
+                        extra={
+                            "run_context": "provider_rate_limit_retry",
+                            "source_location": self.model,
+                        },
+                    )
+                    print(
+                        f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...",
+                        flush=True,
+                    )
                     time.sleep(wait)
                     continue
                 raise
@@ -76,12 +90,26 @@ class BaseProvider(ABC):
         """Async version of _complete_with_backoff."""
         for attempt in range(rate_limit_retries + 1):
             try:
-                return await self._acomplete(system, user, response_model=response_model, images=images)
+                return await self._acomplete(
+                    system, user, response_model=response_model, images=images
+                )
             except Exception as e:
                 if self._is_rate_limit_error(e) and attempt < rate_limit_retries:
-                    wait = 5 * (2 ** attempt)
-                    logger.warning("Rate limited (429). Waiting %ds before retry %d/%d.", wait, attempt + 1, rate_limit_retries)
-                    print(f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...", flush=True)
+                    wait = 5 * (2**attempt)
+                    logger.warning(
+                        "Rate limited (429). Waiting %ds before retry %d/%d.",
+                        wait,
+                        attempt + 1,
+                        rate_limit_retries,
+                        extra={
+                            "run_context": "provider_rate_limit_retry_async",
+                            "source_location": self.model,
+                        },
+                    )
+                    print(
+                        f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...",
+                        flush=True,
+                    )
                     await asyncio.sleep(wait)
                     continue
                 raise
@@ -104,7 +132,9 @@ class BaseProvider(ABC):
 
         for attempt in range(max_retries + 1):
             try:
-                result = self._complete_with_backoff(system, current_user, response_model, images, rate_limit_retries)
+                result = self._complete_with_backoff(
+                    system, current_user, response_model, images, rate_limit_retries
+                )
 
                 if response_model and hasattr(response_model, "model_validate"):
                     response_model.model_validate(result)
@@ -112,7 +142,19 @@ class BaseProvider(ABC):
                 return result
             except Exception as e:
                 if attempt < max_retries and not self._is_rate_limit_error(e):
-                    current_user = user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
+                    logger.warning(
+                        "Provider response failed validation/parse on attempt %d/%d; retrying.",
+                        attempt + 1,
+                        max_retries + 1,
+                        extra={
+                            "run_context": "provider_schema_retry",
+                            "source_location": self.model,
+                        },
+                    )
+                    current_user = (
+                        user
+                        + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
+                    )
                     continue
                 raise
 
@@ -130,7 +172,9 @@ class BaseProvider(ABC):
 
         for attempt in range(max_retries + 1):
             try:
-                result = await self._acomplete_with_backoff(system, current_user, response_model, images, rate_limit_retries)
+                result = await self._acomplete_with_backoff(
+                    system, current_user, response_model, images, rate_limit_retries
+                )
 
                 if response_model and hasattr(response_model, "model_validate"):
                     response_model.model_validate(result)
@@ -138,7 +182,19 @@ class BaseProvider(ABC):
                 return result
             except Exception as e:
                 if attempt < max_retries and not self._is_rate_limit_error(e):
-                    current_user = user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
+                    logger.warning(
+                        "Provider response failed validation/parse on attempt %d/%d; retrying.",
+                        attempt + 1,
+                        max_retries + 1,
+                        extra={
+                            "run_context": "provider_schema_retry_async",
+                            "source_location": self.model,
+                        },
+                    )
+                    current_user = (
+                        user
+                        + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
+                    )
                     continue
                 raise
 
@@ -186,8 +242,25 @@ class BaseProvider(ABC):
         except json.JSONDecodeError:
             match = re.search(r"\{.*\}", content, re.DOTALL)
             if match:
-                result = json.loads(match.group())
-                return self._clean_json(result, response_model)
+                try:
+                    result = json.loads(match.group())
+                    return self._clean_json(result, response_model)
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        "JSON parse failed even after extracting object from provider response.",
+                        extra={
+                            "run_context": "provider_json_parse_fallback_failed",
+                            "source_location": self.model,
+                        },
+                    )
+                    raise e
+            logger.warning(
+                "JSON parse failed and no object payload could be extracted from provider response.",
+                extra={
+                    "run_context": "provider_json_parse_failed",
+                    "source_location": self.model,
+                },
+            )
             raise
 
     def _debug_print_request(self, template: str, system: str, user: str) -> None:

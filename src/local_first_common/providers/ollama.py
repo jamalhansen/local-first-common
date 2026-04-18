@@ -154,6 +154,15 @@ class OllamaProvider(BaseProvider):
                 response.raise_for_status()
                 content = response.json().get("response", "")
         except httpx.RequestError as exc:
+            logger.warning(
+                "Ollama request failed for %s: %s",
+                self.model,
+                exc,
+                extra={
+                    "run_context": "provider_request_error",
+                    "source_location": self.model,
+                },
+            )
             raise ConnectionError(
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
             )
@@ -199,6 +208,15 @@ class OllamaProvider(BaseProvider):
                 data = response.json()
                 content = data.get("response", "")
         except httpx.RequestError as exc:
+            logger.warning(
+                "Ollama request failed for %s: %s",
+                self.model,
+                exc,
+                extra={
+                    "run_context": "provider_request_error_async",
+                    "source_location": self.model,
+                },
+            )
             raise ConnectionError(
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
             )

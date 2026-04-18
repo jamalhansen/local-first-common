@@ -31,6 +31,7 @@ Typical usage (URL fetch context manager)::
 """
 
 import os
+import logging
 import time
 import warnings
 from dataclasses import dataclass, field
@@ -38,6 +39,19 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 _DEFAULT_SYNC_PATH = Path("~/sync/local-first/processing_log.duckdb").expanduser()
+logger = logging.getLogger(__name__)
+
+
+def _warn_tracking_failure(message: str, exc: Exception, **context) -> None:
+    """Emit both a Python warning and structured logger warning for tracking failures."""
+    warnings.warn(f"[tracking] {message}: {exc}", stacklevel=2)
+    logger.warning(
+        "%s: %s",
+        message,
+        exc,
+        extra=context or None,
+    )
+
 
 # ── processing_log (LLM runs) ────────────────────────────────────────────────
 
@@ -127,8 +141,12 @@ def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_SEQUENCE)
     conn.execute(_CREATE_TABLE)
     # Migrate existing DBs that predate the xml_fallbacks/parse_errors columns
-    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS xml_fallbacks INTEGER;")
-    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS parse_errors INTEGER;")
+    conn.execute(
+        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS xml_fallbacks INTEGER;"
+    )
+    conn.execute(
+        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS parse_errors INTEGER;"
+    )
     conn.execute(_CREATE_TOOLS_SEQUENCE)
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
@@ -136,6 +154,7 @@ def _ensure_schema(conn) -> None:
 
 
 # ── LLM run tracking ─────────────────────────────────────────────────────────
+
 
 def log_run(
     tool_name: str,
@@ -182,7 +201,13 @@ def log_run(
         finally:
             conn.close()
     except Exception as exc:  # noqa: BLE001
-        warnings.warn(f"[tracking] log_run failed: {exc}", stacklevel=2)
+        _warn_tracking_failure(
+            "log_run failed",
+            exc,
+            tool_name=tool_name,
+            source_location=source_location,
+            run_context="processing_log_insert",
+        )
 
 
 def timed_run(
@@ -266,8 +291,14 @@ class _TrackedRun:
                 elif hasattr(usage, "prompt_tokens"):  # older or other styles
                     self._run.input_tokens = usage.prompt_tokens
                     self._run.output_tokens = usage.completion_tokens
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                _warn_tracking_failure(
+                    "Could not extract usage() metadata",
+                    exc,
+                    tool_name=self._run.tool_name,
+                    source_location=self._run.source_location,
+                    run_context="usage_extraction",
+                )
 
 
 class _TimedRun:
@@ -304,12 +335,19 @@ class _TimedRun:
                 parse_errors=self.parse_errors,
                 db_path=self.db_path,
             )
-        except Exception:  # noqa: BLE001
-            pass  # log_run warnings-as-errors must not escape the context manager
+        except Exception as exc:  # noqa: BLE001
+            _warn_tracking_failure(
+                "timed_run failed to persist tracking row",
+                exc,
+                tool_name=self.tool_name,
+                source_location=self.source_location,
+                run_context="timed_run_exit",
+            )
         return False  # never suppress exceptions from the with-block body
 
 
 # ── Tool registration + URL fetch tracking ───────────────────────────────────
+
 
 @dataclass
 class Tool:
@@ -318,6 +356,7 @@ class Tool:
     Obtain via ``register_tool()``. If registration failed (DB unavailable),
     ``id`` is None and fetch logging is silently skipped.
     """
+
     name: str
     id: int | None = field(default=None)
 
@@ -341,7 +380,13 @@ def register_tool(name: str, db_path: str | Path | None = None) -> "Tool":
         finally:
             conn.close()
         return Tool(name=name, id=tool_id)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        _warn_tracking_failure(
+            "register_tool failed",
+            exc,
+            tool_name=name,
+            run_context="register_tool",
+        )
         return Tool(name=name, id=None)
 
 
@@ -426,6 +471,12 @@ class _FetchContext:
                 )
             finally:
                 conn.close()
-        except Exception:  # noqa: BLE001
-            pass  # never raise from __exit__
+        except Exception as exc:  # noqa: BLE001
+            _warn_tracking_failure(
+                "tracked_fetch failed to persist fetch_log row",
+                exc,
+                tool_name=self.tool.name,
+                source_location=self.source_url,
+                run_context="fetch_log_insert",
+            )
         return False
