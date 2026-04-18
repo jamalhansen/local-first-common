@@ -37,24 +37,39 @@ class OllamaProvider(BaseProvider):
     def _get_installed_model_names(self) -> List[str]:
         return [m["name"] for m in self._get_model_info()]
 
+    @staticmethod
+    def _is_powerful_machine() -> bool:
+        """Best-effort heuristic for preferring larger local models on capable Macs."""
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            total_bytes = int(result.stdout.strip())
+        except Exception:
+            return False
+        return total_bytes >= 16 * 1024 * 1024 * 1024
+
     def recommend_model(self, intent: str = "text") -> str:
         """Recommend the best installed model for a given intent.
-        
+
         Intents:
             - 'text': Best general text model for this machine.
             - 'fast': Lowest latency model.
             - 'vision': Best model with vision capabilities.
             - 'encoding': Best model for embeddings/encoding.
         """
-        from ..config import settings
-        
         models = self._get_model_info()
         names = [m["name"] for m in models]
-        
+
         if not names:
             return self.default_model
 
-        powerful = settings.is_powerful_machine
+        powerful = self._is_powerful_machine()
 
         # 1. Vision Logic
         if intent == "vision":
@@ -63,7 +78,7 @@ class OllamaProvider(BaseProvider):
                 for name in names:
                     if pref in name.lower():
                         return name
-            return names[0] # Fallback to first available
+            return names[0]  # Fallback to first available
 
         # 2. Fast / Encoding Logic
         if intent in ("fast", "encoding"):
@@ -80,7 +95,7 @@ class OllamaProvider(BaseProvider):
                 for name in names:
                     if pref in name.lower():
                         return name
-        
+
         # Standard machine or no heavy models found
         for pref in ["phi4-mini", "llama3.1:8b", "llama3.2:3b", "mistral"]:
             for name in names:
@@ -95,7 +110,9 @@ class OllamaProvider(BaseProvider):
             prompt += f"\n\n<instructions>\nReturn ONLY a valid JSON object. Use this exact structure:\n{template}\n</instructions>"
         return prompt
 
-    def _build_payload(self, prompt: str, is_json: bool, images: Optional[list[str]] = None) -> Dict[str, Any]:
+    def _build_payload(
+        self, prompt: str, is_json: bool, images: Optional[list[str]] = None
+    ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
@@ -125,7 +142,11 @@ class OllamaProvider(BaseProvider):
                 response = client.post(f"{self.models_url}/api/generate", json=payload)
                 if response.status_code == 404:
                     installed = self._get_installed_model_names()
-                    hint = f"Installed models: {installed}" if installed else "Run 'ollama list' to see installed models."
+                    hint = (
+                        f"Installed models: {installed}"
+                        if installed
+                        else "Run 'ollama list' to see installed models."
+                    )
                     raise ModelNotFoundError(
                         f"Ollama model '{self.model}' not found. Pull it with 'ollama pull {self.model}'. "
                         f"{hint}. See {self.models_url}"
@@ -137,7 +158,11 @@ class OllamaProvider(BaseProvider):
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
             )
 
-        result = self._parse_json_response(content, response_model) if response_model else content
+        result = (
+            self._parse_json_response(content, response_model)
+            if response_model
+            else content
+        )
         self._debug_print_response(result)
         return result
 
@@ -156,10 +181,16 @@ class OllamaProvider(BaseProvider):
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(f"{self.models_url}/api/generate", json=payload)
+                response = await client.post(
+                    f"{self.models_url}/api/generate", json=payload
+                )
                 if response.status_code == 404:
                     installed = self._get_installed_model_names()
-                    hint = f"Installed models: {installed}" if installed else "Run 'ollama list' to see installed models."
+                    hint = (
+                        f"Installed models: {installed}"
+                        if installed
+                        else "Run 'ollama list' to see installed models."
+                    )
                     raise ModelNotFoundError(
                         f"Ollama model '{self.model}' not found. Pull it with 'ollama pull {self.model}'. "
                         f"{hint}. See {self.models_url}"
@@ -172,6 +203,10 @@ class OllamaProvider(BaseProvider):
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
             )
 
-        result = self._parse_json_response(content, response_model) if response_model else content
+        result = (
+            self._parse_json_response(content, response_model)
+            if response_model
+            else content
+        )
         self._debug_print_response(result)
         return result

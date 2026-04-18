@@ -66,9 +66,9 @@ def get_brand_voice(path: Optional[Path] = None) -> str:
     This ensures personal style guides stay out of the repository.
     Optimizes by extracting 'The Short Version' or 'Writing Style' sections if they exist.
     """
-    from .config import settings
+    from .config import get_setting
     
-    voice_path = path or settings.brand_voice_path
+    voice_path = path or get_setting("local-first-common", "brand_voice_path", env_var="BRAND_VOICE_PATH")
     if not voice_path or not Path(voice_path).exists():
         return ""
         

@@ -2,10 +2,13 @@
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 
-.PHONY: list test sync check fix verify status check-tools help-tools check-hooks show-coverage check-coverage stats usage pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
+
+ops-report:
+	@uv run pipeline-analysis/operational_log_report.py
 
 use-local:
 	@python3 local-first-common/scripts/toggle_source.py local
@@ -30,70 +33,69 @@ upgrade-locks:
 
 check-standards:
 	@echo "Checking for architectural violations..."
-	@# Check: persona-counsel must NOT use resolve_provider
-	@if [ -d "persona-counsel" ] && grep -r "resolve_provider" persona-counsel/src/ 2>/dev/null; then \
+	@FAILED=0; \
+	if [ -d "persona-counsel" ] && grep -r "resolve_provider" persona-counsel/src/ 2>/dev/null; then \
 		echo "  [FAIL] persona-counsel is using resolve_provider! (Must use build_model)"; \
-		exit 1; \
-	fi
-	@# Check: tool registration names must match repo names
-	@echo "Verifying tool registration names..."
-	@for repo in $(REPOS); do \
+		FAILED=$$((FAILED + 1)); \
+	fi; \
+	echo "Verifying tool registration names..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
 			repo_name=$$(basename "$$repo" | tr '-' '_'); \
 			reg_name=$$(grep -r "register_tool(\"" "$$repo/src/" | head -1 | sed -E 's/.*register_tool\("([^"]+)".*/\1/'); \
 			if [ -n "$$reg_name" ] && [ "$$reg_name" != "$$(basename "$$repo")" ]; then \
 				echo "  [FAIL] $$repo registers as '$$reg_name' (expected '$$(basename "$$repo")')"; \
-			fi \
-		fi \
-	done
-	@# Check: register_tool must appear in exactly one file
-	@echo "Checking for duplicate register_tool calls..."
-	@for repo in $(REPOS); do \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Checking for duplicate register_tool calls..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
 			count=$$(grep -rl "register_tool(" "$$repo/src/" 2>/dev/null | wc -l | tr -d ' '); \
 			if [ "$$count" -gt 1 ]; then \
 				echo "  [FAIL] $$repo has register_tool() in $$count files (should be 1):"; \
 				grep -rl "register_tool(" "$$repo/src/" | sed 's/^/    /'; \
-			fi \
-		fi \
-	done
-	@# Check: Typer anti-pattern (default value as first arg to typer.Option)
-	@echo "Checking for Typer anti-patterns..."
-	@for repo in $(REPOS); do \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Checking for Typer anti-patterns..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
 			if grep -Ern "typer\.Option\(os\.environ|typer\.Option\(\"[^-]|typer\.Option\('[^-]" "$$repo/src/" 2>/dev/null | grep -v "\.pyc" > /dev/null; then \
 				echo "  [FAIL] $$repo uses Typer anti-pattern (default value as first arg to typer.Option):"; \
 				grep -Ern "typer\.Option\(os\.environ|typer\.Option\(\"[^-]|typer\.Option\('[^-]" "$$repo/src/" 2>/dev/null | sed 's/^/    /'; \
-			fi \
-		fi \
-	done
-	@# Check: direct LLM library usage outside of local-first-common
-	@echo "Checking for direct LLM library imports..."
-	@for repo in $(REPOS); do \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Checking for direct LLM library imports..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; esac; \
 			if grep -Er "import anthropic|import openai|import google\.generativeai|import groq|import ollama|from anthropic|from openai|from google\.generativeai|from groq|from ollama" "$$repo/src/" > /dev/null; then \
 				echo "  [FAIL] $$repo imports LLM libraries directly (must use local-first-common providers)"; \
-			fi \
-		fi \
-	done
-	@# Check: pydantic-ai usage outside of allowed repos
-	@echo "Checking for pydantic-ai usage..."
-	@for repo in $(REPOS); do \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Checking for pydantic-ai usage..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in "local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"persona-counsel/"|"marketing-persona-counsel/"|"pedantic-troll/") continue ;; esac; \
 			if grep -r "pydantic_ai" "$$repo/src/" > /dev/null; then \
 				echo "  [FAIL] $$repo uses pydantic_ai (only persona-counsel and marketing-persona-counsel are allowed)"; \
 				grep -rl "pydantic_ai" "$$repo/src/" | sed 's/^/    /'; \
-			fi \
-		fi \
-	done
-	@# Check: timed_run usage (per-file: each file that calls .complete( must wrap it)
-	@echo "Verifying timed_run coverage (CLI entry points)..."
-	@for repo in $(REPOS); do \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Verifying timed_run coverage (CLI entry points)..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/src" ]; then \
 			case "$$repo" in \
 				"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
@@ -105,67 +107,76 @@ check-standards:
 						if grep -qE "\.acomplete\(|\.complete\(" "$$pyfile" 2>/dev/null; then \
 							if ! grep -q "timed_run" "$$pyfile"; then \
 								echo "  [FAIL] $$pyfile calls LLM but is missing timed_run"; \
-							fi \
-						fi \
+								FAILED=$$((FAILED + 1)); \
+							fi; \
+						fi; \
 						;; \
 				esac; \
 			done; \
-		fi \
-	done
-	@# Check: Test isolation (must import isolate_tracking_db in conftest.py)
-	@echo "Checking for test isolation (tracking DB)..."
-	@for repo in $(REPOS); do \
+		fi; \
+	done; \
+	echo "Checking for test isolation (tracking DB)..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/tests" ]; then \
 			case "$$repo" in "local-first-common/") continue ;; esac; \
 			if [ ! -f "$$repo/tests/conftest.py" ]; then \
 				echo "  [FAIL] $$repo is missing tests/conftest.py"; \
+				FAILED=$$((FAILED + 1)); \
 			elif ! grep -q "isolate_tracking_db" "$$repo/tests/conftest.py"; then \
 				echo "  [FAIL] $$repo/tests/conftest.py is missing isolate_tracking_db import"; \
-			fi \
-		fi \
-	done
-	@# Check: Tests must NOT import providers directly (hitting real models)
-	@echo "Verifying tests use MockProvider (no direct provider imports)..."
-	@for repo in $(REPOS); do \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Verifying tests use MockProvider (no direct provider imports)..."; \
+	for repo in $(REPOS); do \
 		if [ -d "$$repo/tests" ]; then \
 			case "$$repo" in "local-first-common/") continue ;; esac; \
 			if grep -Er "from local_first_common\.providers\.(ollama|anthropic|gemini|groq|deepseek) import" "$$repo/tests/" > /dev/null; then \
 				echo "  [FAIL] $$repo/tests/ imports providers directly (must use MockProvider)"; \
 				grep -Er "from local_first_common\.providers\.(ollama|anthropic|gemini|groq|deepseek) import" "$$repo/tests/" | sed 's/^/    /'; \
-			fi \
-		fi \
-	done
-	@# Check: Git hygiene (no junk/sensitive files tracked in index)
-	@echo "Checking Git index hygiene..."
-	@FORBIDDEN=".coverage .pytest_cache .ruff_cache .venv .DS_Store __pycache__ .env .envrc .cross-link-cache.db *.pyc *.pyo"; \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo "Checking Git index hygiene..."; \
+	FORBIDDEN=".coverage .pytest_cache .ruff_cache .venv .DS_Store __pycache__ .env .envrc .cross-link-cache.db *.pyc *.pyo"; \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
 			for pattern in $$FORBIDDEN; do \
 				tracked=$$(cd "$$repo" && git ls-files "$$pattern" 2>/dev/null); \
 				if [ -n "$$tracked" ]; then \
 					echo "  [FAIL] $$repo is tracking forbidden pattern: $$pattern"; \
-				fi \
-			done \
-		fi \
-	done
-	@# Check: .gitignore coverage
-	@echo "Verifying .gitignore coverage..."
-	@REQUIRED=".coverage .pytest_cache .ruff_cache .venv .DS_Store __pycache__ .env .envrc"; \
+					FAILED=$$((FAILED + 1)); \
+				fi; \
+			done; \
+		fi; \
+	done; \
+	echo "Verifying .gitignore coverage..."; \
+	REQUIRED=".coverage .pytest_cache .ruff_cache .venv .DS_Store __pycache__ .env .envrc"; \
 	for repo in $(REPOS); do \
 		case "$$repo" in "claude-skills/"|"local-ai-tool-template/") continue ;; esac; \
 		if [ -d "$$repo" ]; then \
 			if [ ! -f "$$repo/.gitignore" ]; then \
 				echo "  [FAIL] $$repo is missing .gitignore"; \
+				FAILED=$$((FAILED + 1)); \
 			else \
 				for pattern in $$REQUIRED; do \
 					if ! grep -q "$$pattern" "$$repo/.gitignore"; then \
 						echo "  [FAIL] $$repo/.gitignore is missing pattern: $$pattern"; \
-					fi \
-				done \
-			fi \
-		fi \
-	done
-	@echo "Standards check complete."
+						FAILED=$$((FAILED + 1)); \
+					fi; \
+				done; \
+			fi; \
+		fi; \
+	done; \
+	if [ $$FAILED -gt 0 ]; then \
+		echo ""; \
+		echo "✗ Standards check failed with $$FAILED errors."; \
+		exit 1; \
+	else \
+		echo "✓ Standards check complete."; \
+	fi
 
 check-databases:
 	@echo "Checking for databases stored locally in tool folders (should be in ~/sync)..."
@@ -238,7 +249,8 @@ check-installable:
 		echo ""; \
 	done; \
 	TOTAL=$$((PASS + FAIL)); \
-	echo "$$PASS/$$TOTAL tools fully installable and documented"
+	echo "$$PASS/$$TOTAL tools fully installable and documented"; \
+	if [ $$FAIL -gt 0 ]; then exit 1; fi
 
 check-scriptable:
 	@echo "Checking for [project.scripts] in all tools..."
@@ -305,6 +317,8 @@ help:
 	@echo "  make use-github    - Switch all repos back to GitHub source (required before committing/pushing)"
 	@echo "  make show-sources  - Show current local-first-common source for each repo"
 	@echo "  make upgrade-locks - Upgrade local-first-common in all uv.lock files"
+	@echo "  make usage         - Show LLM usage stats by tool from processing_log"
+	@echo "  make ops-report    - Show warning/error operational report from operational_log"
 
 list:
 	@echo "Local-first AI tools:"
@@ -371,12 +385,20 @@ stats:
 
 
 check:
-	@for repo in $(REPOS); do \
+	@FAILED=0; \
+	for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Checking $$repo ---"; \
-			(cd $$repo && uv run ruff check --extend-select SIM115 .); \
+			if ! (cd $$repo && uv run ruff check --extend-select SIM115 .); then \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
 		fi \
-	done
+	done; \
+	if [ $$FAILED -gt 0 ]; then \
+		echo ""; \
+		echo "✗ $$FAILED repo(s) failed linting checks."; \
+		exit 1; \
+	fi
 
 verify:
 	@FAIL=0; SUMMARY=""; \
@@ -448,7 +470,8 @@ unpushed:
 	done
 
 check-tools:
-	@for repo in $(REPOS); do \
+	@FAILED=0; \
+	for repo in $(REPOS); do \
 		case "$$repo" in \
 			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
 		esac; \
@@ -468,10 +491,13 @@ check-tools:
 			fi; \
 			if [ "$$ERRORS" -eq 0 ]; then \
 				echo "  ✓ Structure looks good"; \
+			else \
+				FAILED=$$((FAILED + 1)); \
 			fi; \
 			echo ""; \
 		fi \
-	done
+	done; \
+	if [ $$FAILED -gt 0 ]; then exit 1; fi
 
 help-tools:
 	@for repo in $(REPOS); do \

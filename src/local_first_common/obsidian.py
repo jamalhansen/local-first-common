@@ -6,6 +6,8 @@ from typing import Iterator, Optional
 
 import frontmatter
 
+from .text import strip_wikilinks
+
 
 def find_vault_root(env_var: str = "OBSIDIAN_VAULT_PATH") -> Path:
     """Return vault root from env var, or discover via .obsidian dir, or fall back to cwd."""
@@ -128,3 +130,44 @@ def format_notes_for_llm(notes: list[dict]) -> str:
         parts.append(note["content"])
         parts.append("\n---\n")
     return "\n".join(parts)
+
+
+def load_personal_context(context_file: Path) -> str:
+    """Read a personal context file if it exists."""
+    if context_file.exists():
+        return context_file.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def load_goal_context(vault_root: Path, target_date: Optional[date] = None) -> str:
+    """
+    Load goals matching target_date. 
+    Includes both the annual goal file and the monthly focus file if found.
+    """
+    if target_date is None:
+        target_date = date.today()
+
+    year = target_date.strftime("%Y")
+    month_str = target_date.strftime("%Y-%m")
+    
+    yearly_path = vault_root / "Goals" / year / f"{year} Goals.md"
+    monthly_path = vault_root / "Goals" / year / "_monthly" / f"{month_str}.md"
+
+    parts = []
+
+    if yearly_path.exists():
+        try:
+            post = frontmatter.load(str(yearly_path))
+            parts.append(f"### {year} Yearly Goals\n\n" + post.content.strip())
+        except Exception as e:
+            print(f"Warning: could not load yearly goals {yearly_path}: {e}")
+
+    if monthly_path.exists():
+        try:
+            post = frontmatter.load(str(monthly_path))
+            parts.append(f"### {month_str} Monthly Focus\n\n" + post.content.strip())
+        except Exception as e:
+            print(f"Warning: could not load monthly goals {monthly_path}: {e}")
+
+    combined = "\n\n".join(parts)
+    return strip_wikilinks(combined).strip()

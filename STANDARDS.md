@@ -105,7 +105,21 @@ with tracked_fetch(_TOOL, url) as fetch:
 
 ## Implementation for Developers
 
-When building a new tool, use the helpers in `local_first_common.cli`:
+When building a new tool, use the helpers in `local_first_common.cli`.
+
+> **Required:** All helpers (`dry_run_option`, `no_llm_option`, `provider_option`, `model_option`,
+> `verbose_option`, `debug_option`, `init_config_option`) return only flag strings — no default value.
+> They **must** be used with `Annotated`; the default goes on the parameter itself.
+>
+> ```python
+> # CORRECT
+> dry_run: Annotated[bool, dry_run_option()] = False
+>
+> # WRONG — "--dry-run" becomes the bool default, causing a Click parse error
+> dry_run: bool = dry_run_option()
+> ```
+>
+> The `make check-standards` target enforces this with a grep check across all tool repos.
 
 ```python
 from local_first_common.cli import (
@@ -119,12 +133,14 @@ from local_first_common.cli import (
 def run(
     dry_run: Annotated[bool, dry_run_option()] = False,
     no_llm: Annotated[bool, no_llm_option()] = False,
+    provider: Annotated[str, provider_option()] = os.environ.get("MODEL_PROVIDER", "ollama"),
+    model: Annotated[Optional[str], model_option()] = None,
     # ... other options
 ):
     # Standard rule: --no-llm always implies --dry-run
     dry_run = resolve_dry_run(dry_run, no_llm)
         
-    llm = resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
+    llm = resolve_provider(PROVIDERS, provider, model, no_llm=no_llm)
     
     # ... logic ...
     

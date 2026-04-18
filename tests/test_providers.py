@@ -25,14 +25,23 @@ SAMPLE_JSON = json.dumps({"title": "Test", "score": 8, "tags": ["a", "b"]})
 
 class TestProvidersDict:
     def test_all_providers_registered(self):
-        assert set(PROVIDERS.keys()) == {"ollama", "local", "anthropic", "gemini", "groq", "deepseek"}
+        assert set(PROVIDERS.keys()) == {
+            "ollama",
+            "local",
+            "anthropic",
+            "gemini",
+            "groq",
+            "deepseek",
+        }
 
     def test_local_alias_is_ollama(self):
         assert PROVIDERS["local"] is OllamaProvider
 
     def test_each_value_is_base_provider_subclass(self):
         for name, cls in PROVIDERS.items():
-            assert issubclass(cls, BaseProvider), f"{name} is not a BaseProvider subclass"
+            assert issubclass(cls, BaseProvider), (
+                f"{name} is not a BaseProvider subclass"
+            )
 
 
 class TestBaseProvider:
@@ -45,8 +54,10 @@ class TestBaseProvider:
             default_model = "my-model"
             known_models = []
             models_url = "http://example.com"
+
             def _complete(self, system, user, response_model=None, images=None):
                 return ""
+
             async def _acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
@@ -58,8 +69,10 @@ class TestBaseProvider:
             default_model = "my-model"
             known_models = []
             models_url = "http://example.com"
+
             def _complete(self, system, user, response_model=None, images=None):
                 return ""
+
             async def _acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
@@ -71,8 +84,10 @@ class TestBaseProvider:
             default_model = "x"
             known_models = []
             models_url = "http://example.com"
+
             def _complete(self, system, user, response_model=None, images=None):
                 return ""
+
             async def _acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
@@ -89,8 +104,10 @@ class TestBaseProvider:
             default_model = "x"
             known_models = []
             models_url = "http://example.com"
+
             def _complete(self, system, user, response_model=None, images=None):
                 return ""
+
             async def _acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
@@ -103,8 +120,10 @@ class TestBaseProvider:
             default_model = "x"
             known_models = []
             models_url = "http://example.com"
+
             def _complete(self, system, user, response_model=None, images=None):
                 return ""
+
             async def _acomplete(self, system, user, response_model=None, images=None):
                 return ""
 
@@ -134,7 +153,9 @@ class TestBaseProviderRateLimit:
                 return resp
 
             async def _acomplete(self, system, user, response_model=None, images=None):
-                return self._complete(system, user, response_model=response_model, images=images)
+                return self._complete(
+                    system, user, response_model=response_model, images=images
+                )
 
         return Concrete(), call_count
 
@@ -143,12 +164,18 @@ class TestBaseProviderRateLimit:
             default_model = "x"
             known_models = []
             models_url = ""
-            def _complete(self, *a, **kw): return ""
-            async def _acomplete(self, *a, **kw): return ""
+
+            def _complete(self, *a, **kw):
+                return ""
+
+            async def _acomplete(self, *a, **kw):
+                return ""
 
         p = Concrete()
         assert p._is_rate_limit_error(RuntimeError("429 Too Many Requests")) is True
-        assert p._is_rate_limit_error(RuntimeError("500 Internal Server Error")) is False
+        assert (
+            p._is_rate_limit_error(RuntimeError("500 Internal Server Error")) is False
+        )
 
     def test_retries_on_429_then_succeeds(self):
         rate_err = RuntimeError("429 Too Many Requests")
@@ -162,7 +189,9 @@ class TestBaseProviderRateLimit:
 
     def test_raises_after_exhausting_rate_limit_retries(self):
         rate_err = RuntimeError("429 Too Many Requests")
-        provider, call_count = self._make_provider([rate_err, rate_err, rate_err, rate_err])
+        provider, call_count = self._make_provider(
+            [rate_err, rate_err, rate_err, rate_err]
+        )
 
         with patch("time.sleep"):
             with pytest.raises(RuntimeError, match="429"):
@@ -242,7 +271,9 @@ class TestOllamaProvider:
             ctx.post.return_value = mock_resp
             mock_cls.return_value = ctx
 
-            result = OllamaProvider().complete("sys", "usr", response_model=SampleOutput)
+            result = OllamaProvider().complete(
+                "sys", "usr", response_model=SampleOutput
+            )
 
         assert isinstance(result, dict)
         assert result["title"] == "Test"
@@ -259,10 +290,17 @@ class TestOllamaProvider:
             mock_cls.return_value = ctx
 
             p = OllamaProvider(model="no-such-model")
-            p._get_installed_models = MagicMock(return_value=["llama3"])
+            p._get_installed_model_names = MagicMock(return_value=["llama3"])
 
             with pytest.raises(ModelNotFoundError, match="not found"):
                 p.complete("sys", "usr")
+
+    def test_get_installed_model_names_smoke(self):
+        p = OllamaProvider()
+        p._get_model_info = MagicMock(
+            return_value=[{"name": "phi4-mini"}, {"name": "llama3"}]
+        )
+        assert p._get_installed_model_names() == ["phi4-mini", "llama3"]
 
 
 class TestAnthropicProvider:
@@ -304,7 +342,9 @@ class TestAnthropicProvider:
             mock_client.messages.create.return_value = mock_message
             mock_cls.return_value = mock_client
 
-            result = AnthropicProvider().complete("sys", "usr", response_model=SampleOutput)
+            result = AnthropicProvider().complete(
+                "sys", "usr", response_model=SampleOutput
+            )
 
         assert result["title"] == "Test"
 
@@ -324,7 +364,9 @@ class TestGroqProvider:
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"choices": [{"message": {"content": SAMPLE_JSON}}]}
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": SAMPLE_JSON}}]
+        }
 
         with patch("local_first_common.providers.groq.httpx.Client") as mock_cls:
             ctx = MagicMock()
