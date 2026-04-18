@@ -1,8 +1,9 @@
 # Makefile for managing local-first AI tools workspace
 
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
+VERIFY_LOG ?= /tmp/make-verify-latest.log
 
-.PHONY: list test sync check fix verify status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify verify-failures verify-failures-from-log status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -310,6 +311,8 @@ help:
 	@echo "  make fix-scriptable    - Add default entry points to tools that are missing them"
 	@echo "  make check-databases   - Identify databases stored locally instead of in ~/sync"
 	@echo "  make verify            - Full workspace health check (lint + tools + hooks + standards + coverage + installable + scriptable)"
+	@echo "  make verify-failures   - Run verify and print only fail/error-style lines from the captured log"
+	@echo "  make verify-failures-from-log - Print fail/error-style lines from an existing verify log"
 	@echo "  make pre-commit    - Run all pre-commit checks (ruff, tests, security) for all tools"
 	@echo "  make commit m=\"msg\" - Commit tracked changes across repositories with msg"
 	@echo "  make push          - Push all repositories to their remotes (prompts for confirmation)"
@@ -419,6 +422,20 @@ verify:
 	else echo "  ✗ $$FAIL check(s) failed"; fi; \
 	echo "════════════════════════════════════════"; \
 	if [ $$FAIL -gt 0 ]; then exit 1; fi
+
+verify-failures:
+	@$(MAKE) verify --no-print-directory > $(VERIFY_LOG) 2>&1 || true
+	@$(MAKE) verify-failures-from-log --no-print-directory VERIFY_LOG=$(VERIFY_LOG)
+
+verify-failures-from-log:
+	@if [ ! -f "$(VERIFY_LOG)" ]; then \
+		echo "Verify log not found: $(VERIFY_LOG)"; \
+		exit 1; \
+	fi
+	@echo "Verify log: $(VERIFY_LOG)"
+	@echo "--- Extracted fail/error lines ---"
+	@grep -nE "FAIL|ERROR|error:|✗|fatal" $(VERIFY_LOG) || echo "No fail/error lines found."
+	@echo "--- End ---"
 
 fix:
 	@for repo in $(REPOS); do \

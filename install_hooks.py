@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.4"
+HOOK_VERSION = "1.5"
 
 PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
@@ -43,13 +43,22 @@ if [ $STATUS -ne 0 ]; then
     exit 1
 fi
 
-echo "Running pytest with coverage check..."
-uv run pytest -q --cov=src --cov-fail-under=50
-STATUS=$?
-if [ $STATUS -ne 0 ]; then
-    echo ""
-    echo "Commit blocked: tests failed or coverage below 50%. Fix them or use --no-verify to bypass."
-    exit 1
+if [ -d "tests" ]; then
+    if [ -d "src" ]; then
+        echo "Running pytest with coverage check..."
+        uv run pytest -q --cov=src --cov-fail-under=50
+    else
+        echo "Running pytest (no src/ directory detected; skipping coverage args)..."
+        uv run pytest -q
+    fi
+    STATUS=$?
+    if [ $STATUS -ne 0 ]; then
+        echo ""
+        echo "Commit blocked: tests failed or coverage below 50%. Fix them or use --no-verify to bypass."
+        exit 1
+    fi
+else
+    echo "Skipping pytest (no tests/ directory detected)."
 fi
 
 echo "Running pre-commit security scan..."
@@ -118,10 +127,14 @@ def install_hook(repo: Path, hook_name: str, script: str, marker: str) -> bool:
         else:
             backup = hook_path.with_suffix(".pre-security-backup")
             hook_path.rename(backup)
-            print(f"  ~ {repo.name}/{hook_name}: backed up existing hook to {backup.name}")
+            print(
+                f"  ~ {repo.name}/{hook_name}: backed up existing hook to {backup.name}"
+            )
 
     hook_path.write_text(script)
-    hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    hook_path.chmod(
+        hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
+    )
     print(f"  ✓ {repo.name}/{hook_name}: installed (v{HOOK_VERSION})")
     return True
 
@@ -138,7 +151,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--all", action="store_true", help="Install in all local-first repos")
+    parser.add_argument(
+        "--all", action="store_true", help="Install in all local-first repos"
+    )
     parser.add_argument("--repo", help="Install in a specific repo path")
     args = parser.parse_args()
 
