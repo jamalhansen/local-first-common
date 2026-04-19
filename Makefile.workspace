@@ -3,7 +3,7 @@
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 VERIFY_LOG ?= /tmp/make-verify-latest.log
 
-.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -18,6 +18,33 @@ use-local:
 use-github:
 	@python3 local-first-common/scripts/toggle_source.py github
 	@$(MAKE) sync --no-print-directory
+
+use-local-selected:
+	@if [ -z "$(REPOS)" ]; then \
+		echo "Usage: make use-local-selected REPOS='repo-a repo-b'"; \
+		exit 2; \
+	fi
+	@python3 local-first-common/scripts/toggle_source.py local $(REPOS)
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo" ]; then \
+			(cd $$repo && uv sync); \
+		fi; \
+	done
+
+use-github-selected:
+	@if [ -z "$(REPOS)" ]; then \
+		echo "Usage: make use-github-selected REPOS='repo-a repo-b'"; \
+		exit 2; \
+	fi
+	@python3 local-first-common/scripts/toggle_source.py github $(REPOS)
+	@for repo in $(REPOS); do \
+		if [ -d "$$repo" ]; then \
+			(cd $$repo && uv sync); \
+		fi; \
+	done
+
+source-preflight:
+	@python3 local-first-common/scripts/toggle_source.py preflight
 
 show-sources:
 	@python3 local-first-common/scripts/toggle_source.py status
