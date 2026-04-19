@@ -5,32 +5,39 @@ To ensure a predictable and safe user experience across the entire toolkit, all 
 ## Standard Parameters
 
 ### `--dry-run` (short: `-n`)
-*   **Definition**: "No Side-Effects" mode.
-*   **Behavior**: Perform all application logic, including calling the LLM backend to generate content, but **do not persist** the results to permanent storage.
-*   **Persistence targets**: Obsidian vault, SQLite databases, files on disk, or external APIs (e.g., Readwise).
-*   **Output**: Always print the final result or a detailed summary of what *would* have happened to `stdout`.
-*   **Use Case**: "Show me the actual AI response before I save it to my vault."
+
+- **Definition**: "No Side-Effects" mode.
+- **Behavior**: Perform all application logic, including calling the LLM backend to generate content, but **do not persist** the results to permanent storage.
+- **Persistence targets**: Obsidian vault, SQLite databases, files on disk, or external APIs (e.g., Readwise).
+- **Output**: Always print the final result or a detailed summary of what _would_ have happened to `stdout`.
+- **Use Case**: "Show me the actual AI response before I save it to my vault."
 
 ### `--no-llm`
-*   **Definition**: "Skip AI" mode.
-*   **Behavior**: Do not call any LLM provider (Ollama, Anthropic, etc.). Instead, use mock responses (e.g., `[LLM MOCK RESPONSE]`) for any AI-generated fields.
-*   **Interaction**: **Implies `--dry-run`**. It is generally unsafe or useless to persist mock data.
-*   **Use Case**: "Test my CLI arguments, file parsing, and template rendering instantly without spending tokens or waiting for inference."
+
+- **Definition**: "Skip AI" mode.
+- **Behavior**: Do not call any LLM provider (Ollama, Anthropic, etc.). Instead, use mock responses (e.g., `[LLM MOCK RESPONSE]`) for any AI-generated fields.
+- **Interaction**: **Implies `--dry-run`**. It is generally unsafe or useless to persist mock data.
+- **Use Case**: "Test my CLI arguments, file parsing, and template rendering instantly without spending tokens or waiting for inference."
 
 ### `--provider` (short: `-p`)
-*   **Behavior**: Choose the LLM backend.
-*   **Choices**: `ollama`, `anthropic`, `gemini`, `groq`, `deepseek`, or `mock`.
-*   **Default**: Defaults to `ollama` (local) unless the `MODEL_PROVIDER` environment variable is set.
+
+- **Behavior**: Choose the LLM backend.
+- **Choices shown by `provider_option()`**: `ollama`, `local`, `anthropic`, `gemini`, `groq`, `deepseek`.
+- **Accepted input note**: `mock` is accepted by `resolve_provider(...)` for compatibility, but is not listed by `provider_option()`.
+- **Default**: Defaults to `ollama` (local) unless the `MODEL_PROVIDER` environment variable is set.
 
 ### `--model` (short: `-m`)
-*   **Behavior**: Override the default model for the chosen provider.
-*   **Special Aliases**: For `ollama`, supports aliases like `@fast`, `@best`, and `@vision` which resolve to appropriate models based on your machine's hardware profile.
+
+- **Behavior**: Override the default model for the chosen provider.
+- **Special Aliases**: For `ollama`, supports aliases like `@fast`, `@best`, and `@vision` which resolve to appropriate models based on your machine's hardware profile.
 
 ### `--verbose` (short: `-v`)
-*   **Behavior**: Show extra progress information, such as which files are being processed or intermediate logic steps.
+
+- **Behavior**: Show extra progress information, such as which files are being processed or intermediate logic steps.
 
 ### `--debug` (short: `-d`)
-*   **Behavior**: Show raw prompts sent to the LLM and the raw responses received.
+
+- **Behavior**: Show raw prompts sent to the LLM and the raw responses received.
 
 ---
 
@@ -121,13 +128,46 @@ When building a new tool, use the helpers in `local_first_common.cli`.
 >
 > The `make check-standards` target enforces this with a grep check across all tool repos.
 
+### Configuration Precedence
+
+When tools support config files via `get_setting(...)`, use this precedence order:
+
+1. CLI argument
+2. Tool config file value
+3. explicit default/env fallback
+
+Example:
+
+```python
+actual_provider = get_setting(TOOL_NAME, "provider", cli_val=provider, default="ollama")
+actual_model = get_setting(TOOL_NAME, "model", cli_val=model)
+```
+
+### Publishing Preflight
+
+Before pushing, ensure dependencies are in portable mode:
+
+1. Run `make show-sources`.
+2. If target repos are in local path mode, run `make use-github`.
+3. Re-run verification (`make verify` or repo-local checks).
+
+This avoids pre-push portability failures when `local-first-common` uses a local path source.
+
+### Logging Boundary Rule
+
+Use `logger.warning()` / `logger.error()` / `logger.exception()` for non-UX diagnostics in shared code.
+Use `print()` only for intentional end-user CLI output.
+
 ```python
 from local_first_common.cli import (
     dry_run_option,
+    provider_option,
+    model_option,
     no_llm_option,
     resolve_dry_run,
     resolve_provider,
 )
+from local_first_common.config import get_setting
 
 @app.command()
 def run(
@@ -139,18 +179,30 @@ def run(
 ):
     # Standard rule: --no-llm always implies --dry-run
     dry_run = resolve_dry_run(dry_run, no_llm)
-        
-    llm = resolve_provider(PROVIDERS, provider, model, no_llm=no_llm)
-    
+
+    actual_provider = get_setting(TOOL_NAME, "provider", cli_val=provider, default="ollama")
+    actual_model = get_setting(TOOL_NAME, "model", cli_val=model)
+
+    llm = resolve_provider(
+        provider_name=actual_provider,
+        model=actual_model,
+        no_llm=no_llm,
+    )
+
     # ... logic ...
-    
-    # llm.complete() automatically handles JSON parsing, retries on 
+
+    # llm.complete() automatically handles JSON parsing, retries on
     # validation failure (if response_model is provided), and provides
     # mock data in --no-llm mode.
     result = llm.complete(system, user, response_model=MySchema)
-    
+
     if dry_run:
         print(result)
     else:
         save(result)
 ```
+
+### Example Drift Guard
+
+Treat this standards file as an API contract. When helper signatures change in
+`local_first_common`, update examples in this file in the same PR.
