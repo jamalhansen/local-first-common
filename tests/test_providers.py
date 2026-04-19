@@ -231,6 +231,49 @@ class TestBaseProviderRateLimit:
         # but 429 should NOT trigger the JSON-retry outer loop — just 2 calls total
         assert call_count["n"] == 2
 
+    def test_policy_helpers_for_retry_decisions(self):
+        class Concrete(BaseProvider):
+            default_model = "x"
+            known_models = []
+            models_url = ""
+
+            def _complete(self, *a, **kw):
+                return ""
+
+            async def _acomplete(self, *a, **kw):
+                return ""
+
+        p = Concrete()
+        rate_error = RuntimeError("429 Too Many Requests")
+        other_error = RuntimeError("500")
+
+        assert p._rate_limit_wait_seconds(0) == 5
+        assert p._rate_limit_wait_seconds(2) == 20
+        assert p._should_retry_rate_limit(rate_error, attempt=0, rate_limit_retries=2)
+        assert not p._should_retry_rate_limit(
+            rate_error, attempt=2, rate_limit_retries=2
+        )
+        assert p._should_retry_schema(other_error, attempt=0, max_retries=1)
+        assert not p._should_retry_schema(rate_error, attempt=0, max_retries=1)
+
+    def test_build_retry_prompt_includes_error_context(self):
+        class Concrete(BaseProvider):
+            default_model = "x"
+            known_models = []
+            models_url = ""
+
+            def _complete(self, *a, **kw):
+                return ""
+
+            async def _acomplete(self, *a, **kw):
+                return ""
+
+        p = Concrete()
+        prompt = p._build_retry_prompt("Original", RuntimeError("bad json"))
+        assert "Original" in prompt
+        assert "bad json" in prompt
+        assert "Please fix the response to match the schema exactly." in prompt
+
 
 class TestBaseProviderOutputModes:
     def _make_provider(self, responses, **kwargs):

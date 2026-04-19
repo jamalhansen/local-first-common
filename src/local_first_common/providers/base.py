@@ -61,6 +61,31 @@ class BaseProvider(ABC):
         """Return True if the exception indicates a 429 Too Many Requests response."""
         return "429" in str(e)
 
+    @staticmethod
+    def _rate_limit_wait_seconds(attempt: int) -> int:
+        """Exponential backoff in seconds for a given retry attempt index."""
+        return 5 * (2**attempt)
+
+    def _should_retry_rate_limit(
+        self, error: Exception, attempt: int, rate_limit_retries: int
+    ) -> bool:
+        """Policy decision for rate-limit retries."""
+        return self._is_rate_limit_error(error) and attempt < rate_limit_retries
+
+    def _should_retry_schema(
+        self, error: Exception, attempt: int, max_retries: int
+    ) -> bool:
+        """Policy decision for schema/parse retries in complete()."""
+        return attempt < max_retries and not self._is_rate_limit_error(error)
+
+    @staticmethod
+    def _build_retry_prompt(user: str, error: Exception) -> str:
+        """Inject previous error into user prompt for correction retries."""
+        return (
+            user
+            + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{error}\n\nPlease fix the response to match the schema exactly."
+        )
+
     def _complete_with_backoff(
         self,
         system: str,
@@ -79,8 +104,8 @@ class BaseProvider(ABC):
                     system, user, response_model=response_model, images=images
                 )
             except Exception as e:
-                if self._is_rate_limit_error(e) and attempt < rate_limit_retries:
-                    wait = 5 * (2**attempt)
+                if self._should_retry_rate_limit(e, attempt, rate_limit_retries):
+                    wait = self._rate_limit_wait_seconds(attempt)
                     logger.warning(
                         "Rate limited (429). Waiting %ds before retry %d/%d.",
                         wait,
@@ -113,8 +138,8 @@ class BaseProvider(ABC):
                     system, user, response_model=response_model, images=images
                 )
             except Exception as e:
-                if self._is_rate_limit_error(e) and attempt < rate_limit_retries:
-                    wait = 5 * (2**attempt)
+                if self._should_retry_rate_limit(e, attempt, rate_limit_retries):
+                    wait = self._rate_limit_wait_seconds(attempt)
                     logger.warning(
                         "Rate limited (429). Waiting %ds before retry %d/%d.",
                         wait,
@@ -159,7 +184,7 @@ class BaseProvider(ABC):
 
                 return result
             except Exception as e:
-                if attempt < max_retries and not self._is_rate_limit_error(e):
+                if self._should_retry_schema(e, attempt, max_retries):
                     logger.warning(
                         "Provider response failed validation/parse on attempt %d/%d; retrying.",
                         attempt + 1,
@@ -169,10 +194,7 @@ class BaseProvider(ABC):
                             "source_location": self.model,
                         },
                     )
-                    current_user = (
-                        user
-                        + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
-                    )
+                    current_user = self._build_retry_prompt(user, e)
                     continue
                 raise
 
@@ -199,7 +221,7 @@ class BaseProvider(ABC):
 
                 return result
             except Exception as e:
-                if attempt < max_retries and not self._is_rate_limit_error(e):
+                if self._should_retry_schema(e, attempt, max_retries):
                     logger.warning(
                         "Provider response failed validation/parse on attempt %d/%d; retrying.",
                         attempt + 1,
@@ -209,10 +231,7 @@ class BaseProvider(ABC):
                             "source_location": self.model,
                         },
                     )
-                    current_user = (
-                        user
-                        + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{e}\n\nPlease fix the response to match the schema exactly."
-                    )
+                    current_user = self._build_retry_prompt(user, e)
                     continue
                 raise
 
