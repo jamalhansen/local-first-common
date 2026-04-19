@@ -11,6 +11,7 @@ import pytest
 from local_first_common.tracking import (
     Tool,
     _resolve_db_path,
+    get_tracking_write_stats,
     log_run,
     register_tool,
     timed_run,
@@ -76,6 +77,32 @@ class TestResolveDbPath:
 # ---------------------------------------------------------------------------
 
 class TestLogRun:
+    def test_write_stats_success_counter_increments(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        get_tracking_write_stats(reset=True)
+        log_run("my-tool", "phi4-mini", db_path=db)
+        stats = get_tracking_write_stats()
+        assert stats["success"] >= 1
+        assert stats["failure"] == 0
+
+    def test_write_stats_failure_counter_increments(self):
+        get_tracking_write_stats(reset=True)
+        log_run("tool", "model", db_path="/nonexistent/path/db.duckdb")
+        stats = get_tracking_write_stats()
+        assert stats["failure"] >= 1
+
+    def test_write_stats_reset(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        get_tracking_write_stats(reset=True)
+        log_run("my-tool", "phi4-mini", db_path=db)
+        before = get_tracking_write_stats()
+        assert before["success"] >= 1
+        after_reset = get_tracking_write_stats(reset=True)
+        assert after_reset["success"] >= 1
+        cleared = get_tracking_write_stats()
+        assert cleared["success"] == 0
+        assert cleared["failure"] == 0
+
     def test_basic_insert(self, tmp_path):
         db = tmp_path / "test.duckdb"
         log_run("my-tool", "phi4-mini", db_path=db)

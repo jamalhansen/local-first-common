@@ -34,12 +34,63 @@ import os
 import logging
 import time
 import warnings
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
 _DEFAULT_SYNC_PATH = Path("~/sync/local-first/processing_log.duckdb").expanduser()
 logger = logging.getLogger(__name__)
+
+_WRITE_STATS_LOCK = threading.Lock()
+_WRITE_STATS = {
+    "success": 0,
+    "failure": 0,
+    "duration_buckets": {
+        "lt_10ms": 0,
+        "10ms_to_50ms": 0,
+        "50ms_to_200ms": 0,
+        "gte_200ms": 0,
+    },
+}
+
+
+def _duration_bucket(duration_seconds: float) -> str:
+    if duration_seconds < 0.010:
+        return "lt_10ms"
+    if duration_seconds < 0.050:
+        return "10ms_to_50ms"
+    if duration_seconds < 0.200:
+        return "50ms_to_200ms"
+    return "gte_200ms"
+
+
+def _record_write_stat(success: bool, duration_seconds: float) -> None:
+    bucket = _duration_bucket(duration_seconds)
+    with _WRITE_STATS_LOCK:
+        key = "success" if success else "failure"
+        _WRITE_STATS[key] += 1
+        _WRITE_STATS["duration_buckets"][bucket] += 1
+
+
+def get_tracking_write_stats(reset: bool = False) -> dict:
+    """Return write-path instrumentation counters for tracking persistence.
+
+    Counters cover successful and failed write attempts and duration bucket counts.
+    Set ``reset=True`` to clear counters after reading.
+    """
+    with _WRITE_STATS_LOCK:
+        snapshot = {
+            "success": _WRITE_STATS["success"],
+            "failure": _WRITE_STATS["failure"],
+            "duration_buckets": dict(_WRITE_STATS["duration_buckets"]),
+        }
+        if reset:
+            _WRITE_STATS["success"] = 0
+            _WRITE_STATS["failure"] = 0
+            for k in _WRITE_STATS["duration_buckets"]:
+                _WRITE_STATS["duration_buckets"][k] = 0
+        return snapshot
 
 
 def _warn_tracking_failure(message: str, exc: Exception, **context) -> None:
@@ -175,6 +226,8 @@ def log_run(
     # Coerce model to str or None — guards against MagicMock in tests
     if model is not None and not isinstance(model, str):
         model = str(model)
+    start = time.monotonic()
+    write_ok = False
     try:
         import duckdb  # lazy import so tools without duckdb still load
 
@@ -198,6 +251,7 @@ def log_run(
                     parse_errors,
                 ],
             )
+            write_ok = True
         finally:
             conn.close()
     except Exception as exc:  # noqa: BLE001
@@ -208,6 +262,8 @@ def log_run(
             source_location=source_location,
             run_context="processing_log_insert",
         )
+    finally:
+        _record_write_stat(write_ok, time.monotonic() - start)
 
 
 def timed_run(
@@ -367,6 +423,8 @@ def register_tool(name: str, db_path: str | Path | None = None) -> "Tool":
     Call once at tool startup — not per request. Never raises; returns a Tool
     with ``id=None`` if the DB is unavailable (fetch logging is then skipped).
     """
+    start = time.monotonic()
+    write_ok = False
     try:
         import duckdb
 
@@ -377,6 +435,7 @@ def register_tool(name: str, db_path: str | Path | None = None) -> "Tool":
             conn.execute(_UPSERT_TOOL, [name])
             row = conn.execute(_SELECT_TOOL_ID, [name]).fetchone()
             tool_id = row[0] if row else None
+            write_ok = True
         finally:
             conn.close()
         return Tool(name=name, id=tool_id)
@@ -388,6 +447,8 @@ def register_tool(name: str, db_path: str | Path | None = None) -> "Tool":
             run_context="register_tool",
         )
         return Tool(name=name, id=None)
+    finally:
+        _record_write_stat(write_ok, time.monotonic() - start)
 
 
 def tracked_fetch(
@@ -447,6 +508,8 @@ class _FetchContext:
         duration_ms = int((time.monotonic() - self._start) * 1000)
         domain = urlparse(self.url).netloc or None
 
+        start = time.monotonic()
+        write_ok = False
         try:
             import duckdb
 
@@ -469,6 +532,7 @@ class _FetchContext:
                         self.title,
                     ],
                 )
+                write_ok = True
             finally:
                 conn.close()
         except Exception as exc:  # noqa: BLE001
@@ -479,4 +543,6 @@ class _FetchContext:
                 source_location=self.source_url,
                 run_context="fetch_log_insert",
             )
+        finally:
+            _record_write_stat(write_ok, time.monotonic() - start)
         return False
