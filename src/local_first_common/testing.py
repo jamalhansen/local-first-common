@@ -2,23 +2,28 @@
 import os
 from typing import Any, Dict, Optional, Union
 
-import pytest
+try:
+    import pytest
+except ImportError:  # pragma: no cover - runtime path when pytest is not installed
+    pytest = None
 
 from .providers.base import BaseProvider
 
 
-@pytest.fixture(autouse=True, scope="session")
-def isolate_tracking_db(tmp_path_factory):
-    """Redirect the tracking DB to a temp path so tests never write to the real DB.
+if pytest is not None:
 
-    Import this fixture in a repo's tests/conftest.py to activate it::
+    @pytest.fixture(autouse=True, scope="session")
+    def isolate_tracking_db(tmp_path_factory):
+        """Redirect the tracking DB to a temp path so tests never write to the real DB.
 
-        from local_first_common.testing import isolate_tracking_db  # noqa: F401
-    """
-    db = tmp_path_factory.mktemp("tracking") / "test_tracking.duckdb"
-    os.environ["LOCAL_FIRST_TRACKING_DB"] = str(db)
-    yield
-    os.environ.pop("LOCAL_FIRST_TRACKING_DB", None)
+        Import this fixture in a repo's tests/conftest.py to activate it::
+
+            from local_first_common.testing import isolate_tracking_db  # noqa: F401
+        """
+        db = tmp_path_factory.mktemp("tracking") / "test_tracking.duckdb"
+        os.environ["LOCAL_FIRST_TRACKING_DB"] = str(db)
+        yield
+        os.environ.pop("LOCAL_FIRST_TRACKING_DB", None)
 
 
 _AUTO = object()

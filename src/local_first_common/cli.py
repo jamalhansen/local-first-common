@@ -1,4 +1,5 @@
 """Typer CLI helpers for consistent provider/model/flag patterns across tools."""
+
 import logging
 from typing import Any, Optional
 
@@ -9,12 +10,19 @@ from .logging import setup_logging
 app = typer.Typer(name="local-first", help="Local-first AI tools management.")
 
 
+@app.callback()
+def main() -> None:
+    """Entry callback so `local-first --help` is always valid."""
+    return None
+
+
 def provider_option(providers: dict | None = None) -> Any:
     """Return a Typer Option for provider metadata."""
     if providers is None:
         from .providers import PROVIDERS
+
         providers = PROVIDERS
-    
+
     choices = list(providers.keys())
     return typer.Option(
         "--provider",
@@ -80,9 +88,11 @@ def init_config_callback(tool_name: str, defaults: dict):
     def callback(value: bool):
         if value:
             from .config import init_config
+
             path = init_config(tool_name, defaults)
             typer.echo(f"Created default config at {path}")
             raise typer.Exit()
+
     return callback
 
 
@@ -114,10 +124,12 @@ def resolve_provider(
     """Instantiate the named provider, with validation and helpful error on unknown name."""
     if providers is None:
         from .providers import PROVIDERS
+
         providers = PROVIDERS
 
     if no_llm or provider_name == "mock":
         from .testing import MockProvider
+
         return MockProvider()
 
     if debug:
@@ -127,7 +139,9 @@ def resolve_provider(
 
     if provider_name not in providers:
         valid = ", ".join(providers.keys())
-        raise typer.BadParameter(f"Unknown provider '{provider_name}'. Valid options: {valid}")
+        raise typer.BadParameter(
+            f"Unknown provider '{provider_name}'. Valid options: {valid}"
+        )
 
     cls = providers[provider_name]
     return cls(model=model)

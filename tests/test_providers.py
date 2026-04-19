@@ -12,6 +12,7 @@ from local_first_common.providers.groq import GroqProvider
 from local_first_common.providers.deepseek import DeepSeekProvider
 from local_first_common.providers.errors import ModelNotFoundError
 from local_first_common.providers.gemini import GeminiProvider
+from local_first_common.cli import resolve_provider
 
 
 class SampleOutput(BaseModel):
@@ -42,6 +43,11 @@ class TestProvidersDict:
             assert issubclass(cls, BaseProvider), (
                 f"{name} is not a BaseProvider subclass"
             )
+
+    def test_resolve_provider_returns_mock_provider_for_no_llm(self):
+        provider = resolve_provider(provider_name="ollama", no_llm=True)
+        assert provider.__class__.__name__ == "MockProvider"
+        assert provider.model == "mock"
 
 
 class TestBaseProvider:
