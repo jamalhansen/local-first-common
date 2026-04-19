@@ -35,6 +35,7 @@ import logging
 import time
 import warnings
 import threading
+import atexit
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -53,6 +54,9 @@ _WRITE_STATS = {
         "gte_200ms": 0,
     },
 }
+
+_RUN_QUEUE_LOCK = threading.Lock()
+_QUEUED_RUNS: dict[str, list[list[object | None]]] = {}
 
 
 def _duration_bucket(duration_seconds: float) -> str:
@@ -102,6 +106,26 @@ def _warn_tracking_failure(message: str, exc: Exception, **context) -> None:
         exc,
         extra=context or None,
     )
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _batched_mode_enabled() -> bool:
+    return _env_flag("LOCAL_FIRST_TRACKING_BATCHED", default=False)
+
+
+def _batch_size() -> int:
+    raw = os.environ.get("LOCAL_FIRST_TRACKING_BATCH_SIZE", "25")
+    try:
+        parsed = int(raw)
+    except ValueError:
+        parsed = 25
+    return parsed if parsed > 0 else 25
 
 
 # ── processing_log (LLM runs) ────────────────────────────────────────────────
@@ -204,6 +228,80 @@ def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_FETCH_LOG_TABLE)
 
 
+def _persist_run_payloads(
+    path: Path,
+    payloads: list[list[object | None]],
+    *,
+    source_location: str | None,
+) -> bool:
+    if not payloads:
+        return True
+    try:
+        import duckdb
+
+        conn = duckdb.connect(str(path))
+        try:
+            _ensure_schema(conn)
+            conn.executemany(_INSERT, payloads)
+        finally:
+            conn.close()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _warn_tracking_failure(
+            "log_run failed",
+            exc,
+            source_location=source_location,
+            run_context="processing_log_insert",
+        )
+        return False
+
+
+def flush_queued_runs(db_path: str | Path | None = None) -> int:
+    """Flush queued processing_log rows when batched mode is enabled.
+
+    Returns the number of rows successfully persisted.
+    """
+    with _RUN_QUEUE_LOCK:
+        if db_path is not None:
+            path = _resolve_db_path(db_path)
+            key = str(path)
+            payloads = _QUEUED_RUNS.pop(key, [])
+            work_items = [(key, payloads)] if payloads else []
+        else:
+            work_items = list(_QUEUED_RUNS.items())
+            _QUEUED_RUNS.clear()
+
+    flushed = 0
+    for path_str, payloads in work_items:
+        start = time.monotonic()
+        ok = _persist_run_payloads(
+            Path(path_str),
+            payloads,
+            source_location=payloads[0][2] if payloads else None,
+        )
+        _record_write_stat(ok, time.monotonic() - start)
+        if ok:
+            flushed += len(payloads)
+        else:
+            # Keep data for retry on next explicit flush.
+            with _RUN_QUEUE_LOCK:
+                _QUEUED_RUNS.setdefault(path_str, []).extend(payloads)
+    return flushed
+
+
+def _queue_run_payload(path: Path, payload: list[object | None]) -> None:
+    path_key = str(path)
+    should_flush = False
+    with _RUN_QUEUE_LOCK:
+        _QUEUED_RUNS.setdefault(path_key, []).append(payload)
+        should_flush = len(_QUEUED_RUNS[path_key]) >= _batch_size()
+    if should_flush:
+        flush_queued_runs(path)
+
+
+atexit.register(flush_queued_runs)
+
+
 # ── LLM run tracking ─────────────────────────────────────────────────────────
 
 
@@ -226,34 +324,41 @@ def log_run(
     # Coerce model to str or None — guards against MagicMock in tests
     if model is not None and not isinstance(model, str):
         model = str(model)
-    start = time.monotonic()
-    write_ok = False
-    try:
-        import duckdb  # lazy import so tools without duckdb still load
 
-        path = _resolve_db_path(db_path)
-        conn = duckdb.connect(str(path))
+    payload = [
+        tool_name,
+        model,
+        source_location,
+        item_count,
+        input_tokens,
+        output_tokens,
+        duration_seconds,
+        success,
+        error_message,
+        xml_fallbacks,
+        parse_errors,
+    ]
+
+    if _batched_mode_enabled():
         try:
-            _ensure_schema(conn)
-            conn.execute(
-                _INSERT,
-                [
-                    tool_name,
-                    model,
-                    source_location,
-                    item_count,
-                    input_tokens,
-                    output_tokens,
-                    duration_seconds,
-                    success,
-                    error_message,
-                    xml_fallbacks,
-                    parse_errors,
-                ],
+            path = _resolve_db_path(db_path)
+            _queue_run_payload(path, payload)
+        except Exception as exc:  # noqa: BLE001
+            _warn_tracking_failure(
+                "log_run failed",
+                exc,
+                tool_name=tool_name,
+                source_location=source_location,
+                run_context="processing_log_queue",
             )
-            write_ok = True
-        finally:
-            conn.close()
+            _record_write_stat(False, 0.0)
+        return
+
+    start = time.monotonic()
+    ok = False
+    try:
+        path = _resolve_db_path(db_path)
+        ok = _persist_run_payloads(path, [payload], source_location=source_location)
     except Exception as exc:  # noqa: BLE001
         _warn_tracking_failure(
             "log_run failed",
@@ -262,8 +367,7 @@ def log_run(
             source_location=source_location,
             run_context="processing_log_insert",
         )
-    finally:
-        _record_write_stat(write_ok, time.monotonic() - start)
+    _record_write_stat(ok, time.monotonic() - start)
 
 
 def timed_run(

@@ -1,6 +1,7 @@
 """Tests for local_first_common.tracking."""
 
 import time
+import threading
 import warnings
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +12,7 @@ import pytest
 from local_first_common.tracking import (
     Tool,
     _resolve_db_path,
+    flush_queued_runs,
     get_tracking_write_stats,
     log_run,
     register_tool,
@@ -22,6 +24,7 @@ from local_first_common.tracking import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _row_count(db_path: Path, table: str = "processing_log") -> int:
     conn = duckdb.connect(str(db_path))
@@ -46,6 +49,7 @@ def _last_row(db_path: Path, table: str = "processing_log") -> dict:
 # ---------------------------------------------------------------------------
 # _resolve_db_path
 # ---------------------------------------------------------------------------
+
 
 class TestResolveDbPath:
     def test_explicit_override_wins(self, tmp_path):
@@ -75,6 +79,7 @@ class TestResolveDbPath:
 # ---------------------------------------------------------------------------
 # log_run
 # ---------------------------------------------------------------------------
+
 
 class TestLogRun:
     def test_write_stats_success_counter_increments(self, tmp_path):
@@ -134,7 +139,9 @@ class TestLogRun:
 
     def test_failure_row(self, tmp_path):
         db = tmp_path / "test.duckdb"
-        log_run("my-tool", "phi4-mini", success=False, error_message="timeout", db_path=db)
+        log_run(
+            "my-tool", "phi4-mini", success=False, error_message="timeout", db_path=db
+        )
         row = _last_row(db)
         assert row["success"] is False
         assert row["error_message"] == "timeout"
@@ -190,9 +197,60 @@ class TestLogRun:
         assert row["created_at"] is not None
 
 
+class TestBatchedLogRun:
+    def test_batched_mode_queues_until_flushed(self, tmp_path, monkeypatch):
+        db = tmp_path / "batched.duckdb"
+        flush_queued_runs()
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_BATCHED", "1")
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_BATCH_SIZE", "100")
+
+        log_run("tool", "model", db_path=db)
+        log_run("tool", "model", db_path=db)
+
+        flushed = flush_queued_runs(db)
+        assert flushed == 2
+        assert _row_count(db) == 2
+
+    def test_batched_mode_auto_flushes_on_batch_size(self, tmp_path, monkeypatch):
+        db = tmp_path / "batched-auto.duckdb"
+        flush_queued_runs()
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_BATCHED", "1")
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_BATCH_SIZE", "2")
+
+        log_run("tool", "model", db_path=db)
+        log_run("tool", "model", db_path=db)
+
+        assert _row_count(db) == 2
+
+    def test_batched_mode_handles_concurrent_writers(self, tmp_path, monkeypatch):
+        db = tmp_path / "batched-concurrent.duckdb"
+        flush_queued_runs()
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_BATCHED", "1")
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_BATCH_SIZE", "1000")
+
+        thread_count = 5
+        per_thread = 20
+
+        def worker(idx: int):
+            for j in range(per_thread):
+                log_run("tool", f"model-{idx}", source_location=str(j), db_path=db)
+
+        threads = [
+            threading.Thread(target=worker, args=(i,)) for i in range(thread_count)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        flush_queued_runs(db)
+        assert _row_count(db) == thread_count * per_thread
+
+
 # ---------------------------------------------------------------------------
 # timed_run context manager
 # ---------------------------------------------------------------------------
+
 
 class TestTimedRun:
     def test_logs_on_success(self, tmp_path):
@@ -266,6 +324,7 @@ class TestTimedRun:
 # register_tool
 # ---------------------------------------------------------------------------
 
+
 class TestRegisterTool:
     def test_returns_tool_with_id(self, tmp_path):
         db = tmp_path / "test.duckdb"
@@ -304,16 +363,22 @@ class TestRegisterTool:
 # tracked_fetch context manager
 # ---------------------------------------------------------------------------
 
+
 class TestTrackedFetch:
     def test_successful_fetch_logged(self, tmp_path):
         db = tmp_path / "test.duckdb"
         tool = register_tool("test-tool", db_path=db)
 
-        with patch("local_first_common.http.fetch_url", return_value="<html>hello</html>"):
-            with tracked_fetch(tool, "https://example.com/article",
-                               source_url="https://bsky.app/post/123",
-                               source_platform="bluesky",
-                               db_path=db) as fetch:
+        with patch(
+            "local_first_common.http.fetch_url", return_value="<html>hello</html>"
+        ):
+            with tracked_fetch(
+                tool,
+                "https://example.com/article",
+                source_url="https://bsky.app/post/123",
+                source_platform="bluesky",
+                db_path=db,
+            ) as fetch:
                 fetch.title = "Example Article"
 
         assert fetch.html == "<html>hello</html>"
@@ -335,11 +400,17 @@ class TestTrackedFetch:
         tool = register_tool("test-tool", db_path=db)
 
         from local_first_common.http import FetchError
-        with patch("local_first_common.http.fetch_url",
-                   side_effect=FetchError("403 Forbidden", status_code=403)):
-            with tracked_fetch(tool, "https://example.com/blocked",
-                               source_platform="mastodon",
-                               db_path=db) as fetch:
+
+        with patch(
+            "local_first_common.http.fetch_url",
+            side_effect=FetchError("403 Forbidden", status_code=403),
+        ):
+            with tracked_fetch(
+                tool,
+                "https://example.com/blocked",
+                source_platform="mastodon",
+                db_path=db,
+            ) as fetch:
                 pass  # fetch.html is None
 
         assert fetch.html is None
@@ -356,8 +427,11 @@ class TestTrackedFetch:
         tool = register_tool("test-tool", db_path=db)
 
         from local_first_common.http import FetchError
-        with patch("local_first_common.http.fetch_url",
-                   side_effect=FetchError("Read timed out", status_code=None)):
+
+        with patch(
+            "local_first_common.http.fetch_url",
+            side_effect=FetchError("Read timed out", status_code=None),
+        ):
             with tracked_fetch(tool, "https://slow.example.com/", db_path=db):
                 pass
 
@@ -404,10 +478,13 @@ class TestTrackedFetch:
         tool = register_tool("test-tool", db_path=db)
 
         with patch("local_first_common.http.fetch_url", return_value="<html/>"):
-            with tracked_fetch(tool, "https://example.com/",
-                               source_url="https://mastodon.social/@user/post/999",
-                               source_platform="mastodon",
-                               db_path=db):
+            with tracked_fetch(
+                tool,
+                "https://example.com/",
+                source_url="https://mastodon.social/@user/post/999",
+                source_platform="mastodon",
+                db_path=db,
+            ):
                 pass
 
         row = _last_row(db, table="fetch_log")
