@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, get_args, get_origin
+from typing import Any, Callable, Dict, Optional, Union, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,29 @@ class BaseProvider(ABC):
     known_models: list
     models_url: str
 
-    def __init__(self, model: Optional[str] = None, debug: bool = False):
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        debug: bool = False,
+        report_callback: Optional[Callable[[str], None]] = None,
+        interactive_output: bool = True,
+    ):
         self.model = model or self.default_model
         self.debug = debug
+        self.report_callback = report_callback
+        self.interactive_output = interactive_output
+
+    def _emit_status(self, message: str) -> None:
+        """Emit status text via callback or stdout when enabled.
+
+        This preserves existing interactive behavior by default while allowing
+        non-interactive callers to disable terminal writes.
+        """
+        if self.report_callback:
+            self.report_callback(message)
+            return
+        if self.interactive_output:
+            print(message, flush=True)
 
     @abstractmethod
     def _complete(
@@ -71,9 +91,8 @@ class BaseProvider(ABC):
                             "source_location": self.model,
                         },
                     )
-                    print(
+                    self._emit_status(
                         f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...",
-                        flush=True,
                     )
                     time.sleep(wait)
                     continue
@@ -106,9 +125,8 @@ class BaseProvider(ABC):
                             "source_location": self.model,
                         },
                     )
-                    print(
+                    self._emit_status(
                         f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{rate_limit_retries}...",
-                        flush=True,
                     )
                     await asyncio.sleep(wait)
                     continue
@@ -266,18 +284,20 @@ class BaseProvider(ABC):
     def _debug_print_request(self, template: str, system: str, user: str) -> None:
         if not self.debug:
             return
-        print("\n" + "=" * 20 + " DEBUG: PROMPT " + "=" * 20)
-        print(f"PROVIDER: {self.__class__.__name__}")
-        print(f"MODEL: {self.model}")
-        print(f"SYSTEM: {system}")
-        print(f"USER: {user}")
+        logger.debug("Provider prompt debug emitted for %s", self.__class__.__name__)
+        self._emit_status("\n" + "=" * 20 + " DEBUG: PROMPT " + "=" * 20)
+        self._emit_status(f"PROVIDER: {self.__class__.__name__}")
+        self._emit_status(f"MODEL: {self.model}")
+        self._emit_status(f"SYSTEM: {system}")
+        self._emit_status(f"USER: {user}")
         if template:
-            print(f"TEMPLATE:\n{template}")
-        print("=" * 55 + "\n")
+            self._emit_status(f"TEMPLATE:\n{template}")
+        self._emit_status("=" * 55 + "\n")
 
     def _debug_print_response(self, result: Any) -> None:
         if not self.debug:
             return
-        print("\n" + "=" * 20 + " DEBUG: RESPONSE " + "=" * 20)
-        print(result)
-        print("=" * 57 + "\n")
+        logger.debug("Provider response debug emitted for %s", self.__class__.__name__)
+        self._emit_status("\n" + "=" * 20 + " DEBUG: RESPONSE " + "=" * 20)
+        self._emit_status(str(result))
+        self._emit_status("=" * 57 + "\n")

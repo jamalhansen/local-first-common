@@ -232,6 +232,73 @@ class TestBaseProviderRateLimit:
         assert call_count["n"] == 2
 
 
+class TestBaseProviderOutputModes:
+    def _make_provider(self, responses, **kwargs):
+        call_count = {"n": 0}
+
+        class Concrete(BaseProvider):
+            default_model = "x"
+            known_models = []
+            models_url = "http://example.com"
+
+            def __init__(self, **inner_kwargs):
+                super().__init__(**inner_kwargs)
+
+            def _complete(self, system, user, response_model=None, images=None):
+                resp = responses[min(call_count["n"], len(responses) - 1)]
+                call_count["n"] += 1
+                if isinstance(resp, Exception):
+                    raise resp
+                return resp
+
+            async def _acomplete(self, system, user, response_model=None, images=None):
+                return self._complete(
+                    system, user, response_model=response_model, images=images
+                )
+
+        return Concrete(**kwargs), call_count
+
+    def test_rate_limit_status_uses_report_callback(self):
+        messages = []
+        provider, _ = self._make_provider(
+            [RuntimeError("429 Too Many Requests"), "ok"],
+            report_callback=messages.append,
+            interactive_output=False,
+        )
+
+        with patch("time.sleep"):
+            result = provider.complete("sys", "usr", rate_limit_retries=2)
+
+        assert result == "ok"
+        assert any("Rate limited" in msg for msg in messages)
+
+    def test_non_interactive_output_suppresses_print(self):
+        provider, _ = self._make_provider(
+            [RuntimeError("429 Too Many Requests"), "ok"],
+            interactive_output=False,
+        )
+
+        with patch("time.sleep"), patch("builtins.print") as mock_print:
+            provider.complete("sys", "usr", rate_limit_retries=2)
+
+        mock_print.assert_not_called()
+
+    def test_debug_output_can_be_collected_via_callback(self):
+        messages = []
+        provider, _ = self._make_provider(
+            ["ok"],
+            debug=True,
+            report_callback=messages.append,
+            interactive_output=False,
+        )
+
+        provider._debug_print_request("template", "system", "user")
+        provider._debug_print_response({"ok": True})
+
+        assert any("DEBUG: PROMPT" in msg for msg in messages)
+        assert any("DEBUG: RESPONSE" in msg for msg in messages)
+
+
 class TestOllamaProvider:
     def test_default_model(self):
         p = OllamaProvider()
