@@ -391,8 +391,8 @@ class TestOllamaProvider:
                 "sys", "usr", response_model=SampleOutput
             )
 
-        assert isinstance(result, dict)
-        assert result["title"] == "Test"
+        assert isinstance(result, SampleOutput)
+        assert result.title == "Test"
 
     def test_model_not_found_raises_runtime_error(self):
         mock_resp = MagicMock()
@@ -462,7 +462,8 @@ class TestAnthropicProvider:
                 "sys", "usr", response_model=SampleOutput
             )
 
-        assert result["title"] == "Test"
+        assert isinstance(result, SampleOutput)
+        assert result.title == "Test"
 
 
 class TestGroqProvider:
@@ -493,7 +494,8 @@ class TestGroqProvider:
 
             result = GroqProvider().complete("sys", "usr", response_model=SampleOutput)
 
-        assert result["score"] == 8
+        assert isinstance(result, SampleOutput)
+        assert result.score == 8
 
 
 class TestDeepSeekProvider:

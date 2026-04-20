@@ -18,8 +18,8 @@ class TestMockProvider:
     def test_returns_parsed_dict_with_response_model(self):
         p = MockProvider(response='{"answer": "yes", "confidence": 9}')
         result = p.complete("sys", "usr", response_model=SampleModel)
-        assert isinstance(result, dict)
-        assert result["answer"] == "yes"
+        assert isinstance(result, SampleModel)
+        assert result.answer == "yes"
 
     def test_records_calls(self):
         p = MockProvider(response="ok")

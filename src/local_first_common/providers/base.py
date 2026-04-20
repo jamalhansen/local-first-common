@@ -180,7 +180,7 @@ class BaseProvider(ABC):
                 )
 
                 if response_model and hasattr(response_model, "model_validate"):
-                    response_model.model_validate(result)
+                    result = response_model.model_validate(result)
 
                 return result
             except Exception as e:
@@ -217,7 +217,7 @@ class BaseProvider(ABC):
                 )
 
                 if response_model and hasattr(response_model, "model_validate"):
-                    response_model.model_validate(result)
+                    result = response_model.model_validate(result)
 
                 return result
             except Exception as e:
