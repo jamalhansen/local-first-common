@@ -3,7 +3,11 @@ from datetime import datetime, timedelta, timezone
 
 import duckdb
 
-from local_first_common.logging import purge_old_logs, setup_logging
+from local_first_common.logging import (
+    purge_old_logs,
+    resolve_log_db_path,
+    setup_logging,
+)
 
 
 def _fetch_all(db_path: str, query: str):
@@ -15,9 +19,21 @@ def _fetch_all(db_path: str, query: str):
 
 
 class TestOperationalLogging:
+    def test_error_log_env_var_wins(self, tmp_path, monkeypatch):
+        db_path = tmp_path / "error_log.duckdb"
+        monkeypatch.setenv("LOCAL_FIRST_ERROR_LOG_DB", str(db_path))
+
+        assert resolve_log_db_path() == db_path
+
+    def test_error_log_env_directory_uses_fixed_filename(self, tmp_path, monkeypatch):
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        monkeypatch.setenv("LOCAL_FIRST_ERROR_LOG_DB", str(log_dir))
+        assert resolve_log_db_path() == log_dir / "error_log.duckdb"
+
     def test_warning_is_persisted(self, tmp_path, monkeypatch):
         db_path = tmp_path / "ops.duckdb"
-        monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db_path))
+        monkeypatch.setenv("LOCAL_FIRST_ERROR_LOG_DB", str(db_path))
 
         setup_logging(tool_name="test-tool", persist_warnings=True)
         logging.getLogger("test.logger").warning("warning persisted")
@@ -34,7 +50,7 @@ class TestOperationalLogging:
 
     def test_exception_contains_traceback(self, tmp_path, monkeypatch):
         db_path = tmp_path / "ops.duckdb"
-        monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db_path))
+        monkeypatch.setenv("LOCAL_FIRST_ERROR_LOG_DB", str(db_path))
 
         setup_logging(tool_name="test-tool", persist_warnings=True)
         logger = logging.getLogger("test.exception")
@@ -54,7 +70,7 @@ class TestOperationalLogging:
 
     def test_info_not_persisted(self, tmp_path, monkeypatch):
         db_path = tmp_path / "ops.duckdb"
-        monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db_path))
+        monkeypatch.setenv("LOCAL_FIRST_ERROR_LOG_DB", str(db_path))
 
         setup_logging(tool_name="test-tool", persist_warnings=True)
         logging.getLogger("test.info").info("ignored info")
@@ -64,7 +80,7 @@ class TestOperationalLogging:
 
     def test_retention_purges_old_rows(self, tmp_path, monkeypatch):
         db_path = tmp_path / "ops.duckdb"
-        monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db_path))
+        monkeypatch.setenv("LOCAL_FIRST_ERROR_LOG_DB", str(db_path))
 
         setup_logging(tool_name="test-tool", persist_warnings=True, retention_days=90)
 

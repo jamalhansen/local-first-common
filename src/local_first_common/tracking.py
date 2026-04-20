@@ -199,14 +199,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 
+def _normalize_db_path(path: Path, *, default_filename: str) -> Path:
+    if path.exists() and path.is_dir():
+        return path / default_filename
+    if path.suffix.lower() == ".duckdb":
+        return path
+    if not path.suffix:
+        return path / default_filename
+    return path
+
+
 def _resolve_db_path(override: str | Path | None = None) -> Path:
     """Return the DuckDB file path, creating parent directories as needed."""
     if override:
-        path = Path(override).expanduser()
+        raw_path = Path(override).expanduser()
     elif env := os.environ.get("LOCAL_FIRST_TRACKING_DB"):
-        path = Path(env).expanduser()
+        raw_path = Path(env).expanduser()
     else:
-        path = _DEFAULT_SYNC_PATH
+        raw_path = _DEFAULT_SYNC_PATH
+
+    path = _normalize_db_path(raw_path, default_filename="processing_log.duckdb")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     return path

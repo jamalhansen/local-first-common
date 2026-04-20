@@ -75,6 +75,13 @@ class TestResolveDbPath:
         result = _resolve_db_path(explicit)
         assert result == explicit
 
+    def test_env_directory_uses_fixed_processing_filename(self, tmp_path, monkeypatch):
+        env_dir = tmp_path / "tracking-dir"
+        env_dir.mkdir()
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(env_dir))
+        result = _resolve_db_path()
+        assert result == env_dir / "processing_log.duckdb"
+
 
 # ---------------------------------------------------------------------------
 # log_run

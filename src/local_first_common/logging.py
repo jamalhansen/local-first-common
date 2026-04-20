@@ -11,7 +11,7 @@ from typing import Any, Optional
 from rich.console import Console
 from rich.logging import RichHandler
 
-_DEFAULT_SYNC_PATH = Path("~/sync/local-first/processing_log.duckdb").expanduser()
+_DEFAULT_SYNC_PATH = Path("~/sync/logging/error_log.duckdb").expanduser()
 _DEFAULT_RETENTION_DAYS = 90
 
 _CREATE_OPERATIONAL_LOG_SEQUENCE = (
@@ -52,14 +52,26 @@ WHERE created_at < ?;
 _STANDARD_RECORD_ATTRS = set(logging.makeLogRecord({}).__dict__.keys())
 
 
+def _normalize_db_path(path: Path, *, default_filename: str) -> Path:
+    if path.exists() and path.is_dir():
+        return path / default_filename
+    if path.suffix.lower() == ".duckdb":
+        return path
+    if not path.suffix:
+        return path / default_filename
+    return path
+
+
 def resolve_log_db_path(db_path: str | Path | None = None) -> Path:
-    """Resolve the DuckDB path used for tracking and operational logging."""
+    """Resolve the DuckDB path used for operational logging."""
     if db_path:
-        path = Path(db_path).expanduser()
-    elif env := os.environ.get("LOCAL_FIRST_TRACKING_DB"):
-        path = Path(env).expanduser()
+        raw_path = Path(db_path).expanduser()
+    elif env := os.environ.get("LOCAL_FIRST_ERROR_LOG_DB"):
+        raw_path = Path(env).expanduser()
     else:
-        path = _DEFAULT_SYNC_PATH
+        raw_path = _DEFAULT_SYNC_PATH
+
+    path = _normalize_db_path(raw_path, default_filename="error_log.duckdb")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
