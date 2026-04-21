@@ -158,7 +158,7 @@ def run(
 
 LLM response parsing utilities.
 
-```python
+````python
 from local_first_common.llm import parse_json_response, try_xml_parse
 
 # Strip ```json fences and parse
@@ -167,7 +167,7 @@ data = parse_json_response(raw)
 # XML fallback for local models that garble JSON
 xml = try_xml_parse(raw, ["score", "summary", "language", "tags"])
 # Returns dict if all fields found, None if any missing
-```
+````
 
 ---
 
@@ -257,6 +257,24 @@ with timed_run("my-tool", provider.model, source_location=url) as run:
 DB: `~/sync/local-first/processing_log.duckdb` (override: `LOCAL_FIRST_TRACKING_DB`).
 
 ## Workspace Orchestration
+
+## Remediation Status (2026-04-19)
+
+The Python architecture remediation addendum tracked in the workspace plan is complete for `local-first-common`.
+
+- Phase B complete: provider base output paths now support callback-driven and non-interactive operation while preserving default interactive behavior.
+- Phase C complete: tracking write-path instrumentation counters are available via `get_tracking_write_stats(reset=False)`, and optional queued persistence mode is available behind feature flags.
+- Phase D complete: source toggle ergonomics include scoped repo operations and preflight checks.
+
+Operational notes:
+
+- Queued tracking mode flags:
+  - `LOCAL_FIRST_TRACKING_BATCHED=1`
+  - `LOCAL_FIRST_TRACKING_BATCH_SIZE=<int>`
+- Workspace source preflight:
+  - `make source-preflight`
+  - `make use-local-selected REPOS="repo-a repo-b"`
+  - `make use-github-selected REPOS="repo-a repo-b"`
 
 The workspace Makefile lives at `~/projects/local-first/Makefile`. Run these from that directory:
 

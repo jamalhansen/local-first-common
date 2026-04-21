@@ -1,4 +1,5 @@
 """Test utilities: MockProvider and shared pytest fixtures for use in project test suites."""
+
 import os
 from typing import Any, Dict, Optional, Union
 
@@ -57,7 +58,7 @@ class MockProvider(BaseProvider):
         self.calls.append((system, user))
         if self._raise_error:
             raise RuntimeError(self._raise_error)
-        
+
         response = self._response
         if response is _AUTO and response_model:
             response = self._get_example_json(response_model)

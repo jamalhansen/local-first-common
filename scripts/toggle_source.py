@@ -21,14 +21,10 @@ import sys
 from pathlib import Path
 
 # Matches:  local-first-common = { git = "https://...", branch = "main" }
-GIT_URL_RE = re.compile(
-    r'local-first-common\s*=\s*\{[^}]*git[^}]*\}'
-)
+GIT_URL_RE = re.compile(r"local-first-common\s*=\s*\{[^}]*git[^}]*\}")
 
 # Matches:  local-first-common = {path = "../local-first-common", editable = true}
-LOCAL_PATH_RE = re.compile(
-    r'local-first-common\s*=\s*\{[^}]*path[^}]*\}'
-)
+LOCAL_PATH_RE = re.compile(r"local-first-common\s*=\s*\{[^}]*path[^}]*\}")
 
 LOCAL_VALUE = 'local-first-common = {path = "../local-first-common", editable = true}'
 
@@ -42,6 +38,7 @@ def _original_git_line(text: str) -> str:
     """Return the exact git-source line from text, or a sensible default."""
     m = GIT_URL_RE.search(text)
     return m.group(0) if m else _GITHUB_VALUE_DEFAULT
+
 
 SKIP_REPOS = {"local-first-common", "local-ai-tool-template", "claude-skills"}
 
@@ -148,9 +145,7 @@ def _report_churn(repos: list[Path]) -> None:
 def switch_to_local(workspace: Path, repo_names: list[str]) -> None:
     repos = _select_repos(workspace, repo_names)
     scope = "selected repos" if repo_names else "all repos"
-    print(
-        f"Switching {scope} to use local-first-common from ../local-first-common ..."
-    )
+    print(f"Switching {scope} to use local-first-common from ../local-first-common ...")
     switched = 0
     for repo in repos:
         toml = repo / "pyproject.toml"

@@ -46,6 +46,14 @@ python3 install_hooks.py --all
 
 ## Changes Log
 
+### 2026-04-20 — Split processing and operational DB defaults again
+
+**Changed:** Restored `tracking.py` to default back to `~/sync/local-first/processing_log.duckdb` for processing telemetry, and moved `logging.py` plus operational reports to `~/sync/logging/error_log.duckdb` with `LOCAL_FIRST_ERROR_LOG_DB` as the override.
+
+**Because:** Processing telemetry (`processing_log`) and operational warning/error persistence (`operational_log`) were conflated into one default path, which blurred the difference between the table purpose and the physical database file.
+
+**Learned:** Shared storage defaults need to follow data ownership, not convenience. A report that queries `operational_log` should default to the operational log file, not the processing telemetry file.
+
 ### 2026-04-18 — Tracking swallow paths now emit structured warnings
 
 **Changed:** Updated `tracking.py` to log structured `WARNING` records (with `run_context` and `source_location`) for previously silent failure paths: `log_run()` insert failures, `timed_run` persistence failures, `register_tool()` registration failures, `tracked_fetch` insert failures, and `usage()` metadata extraction errors.
