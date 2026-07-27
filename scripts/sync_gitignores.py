@@ -15,6 +15,7 @@ MASTER_IGNORES = {
     "*.pyc",
     "*.pyo",
     "*.pyd",
+    "_NOTES.md",
 }
 
 
