@@ -14,6 +14,17 @@ except ImportError:
     _AsyncAnthropic = None  # type: ignore[assignment,misc]
 
 
+def _extract_text(message: Any) -> str:
+    """Concatenate text from a message's content blocks.
+
+    Some models (e.g. extended-thinking-capable ones) return a ThinkingBlock
+    ahead of the TextBlock, so content[0] is not reliably the text block.
+    """
+    return "".join(
+        block.text for block in message.content if hasattr(block, "text")
+    )
+
+
 class AnthropicProvider(BaseProvider):
     default_model = "claude-haiku-4-5-20251001"
     known_models: List[str] = [
@@ -90,7 +101,7 @@ class AnthropicProvider(BaseProvider):
             )
             self.input_tokens += message.usage.input_tokens
             self.output_tokens += message.usage.output_tokens
-            content = message.content[0].text
+            content = _extract_text(message)
         except Exception as e:
             err = str(e)
             if "model" in err.lower() and (
@@ -156,7 +167,7 @@ class AnthropicProvider(BaseProvider):
             )
             self.input_tokens += message.usage.input_tokens
             self.output_tokens += message.usage.output_tokens
-            content = message.content[0].text
+            content = _extract_text(message)
         except Exception as e:
             err = str(e)
             if "model" in err.lower() and (

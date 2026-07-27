@@ -99,6 +99,7 @@ def init_config_callback(tool_name: str, defaults: dict):
 def init_config_option(tool_name: str, defaults: dict) -> Any:
     """Return a Typer Option for --init-config metadata."""
     return typer.Option(
+        False,
         "--init-config",
         callback=init_config_callback(tool_name, defaults),
         is_eager=True,
