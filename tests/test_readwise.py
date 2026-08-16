@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import requests
 
-from local_first_common.readwise import save_to_readwise
+from local_first_common.readwise import list_reader_documents, save_to_readwise
 
 
 class TestSaveToReadwise:
@@ -108,3 +108,109 @@ class TestSaveToReadwise:
         tags = kwargs["json"]["tags"]
         assert "term:duckdb" in tags
         assert "platform:bluesky" in tags
+
+
+def _page(results, next_cursor=None):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "count": len(results),
+        "nextPageCursor": next_cursor,
+        "results": results,
+    }
+    return mock_resp
+
+
+_DOC = {
+    "id": "abc123",
+    "url": "https://read.readwise.io/read/abc123",
+    "source_url": "https://example.com/original-article",
+    "title": "An Article",
+    "author": "Someone",
+    "category": "article",
+    "location": "new",
+    "summary": "A short summary.",
+    "published_date": "2026-03-11",
+}
+
+
+class TestListReaderDocuments:
+    def test_returns_empty_when_no_token(self):
+        result = list_reader_documents("")
+        assert result == []
+
+    def test_maps_document_fields_to_feed_item(self):
+        with patch("local_first_common.readwise.requests.get", return_value=_page([_DOC])):
+            result = list_reader_documents("tok_abc")
+        assert len(result) == 1
+        item = result[0]
+        assert item.title == "An Article"
+        assert item.description == "A short summary."
+        assert item.url == "https://example.com/original-article"
+        assert item.source == "readwise-reader"
+        assert item.published == "2026-03-11"
+        assert item.platform == "reader"
+
+    def test_falls_back_to_reader_url_when_no_source_url(self):
+        doc = dict(_DOC)
+        del doc["source_url"]
+        with patch("local_first_common.readwise.requests.get", return_value=_page([doc])):
+            result = list_reader_documents("tok_abc")
+        assert result[0].url == "https://read.readwise.io/read/abc123"
+
+    def test_sends_authorization_header(self):
+        with patch("local_first_common.readwise.requests.get", return_value=_page([])) as mock_get:
+            list_reader_documents("tok_secret")
+        _, kwargs = mock_get.call_args
+        assert kwargs["headers"]["Authorization"] == "Token tok_secret"
+
+    def test_defaults_to_location_new(self):
+        with patch("local_first_common.readwise.requests.get", return_value=_page([])) as mock_get:
+            list_reader_documents("tok_abc")
+        _, kwargs = mock_get.call_args
+        assert kwargs["params"]["location"] == "new"
+
+    def test_location_none_omits_filter(self):
+        with patch("local_first_common.readwise.requests.get", return_value=_page([])) as mock_get:
+            list_reader_documents("tok_abc", location=None)
+        _, kwargs = mock_get.call_args
+        assert "location" not in kwargs["params"]
+
+    def test_optional_filters_included_when_provided(self):
+        with patch("local_first_common.readwise.requests.get", return_value=_page([])) as mock_get:
+            list_reader_documents(
+                "tok_abc", category="article", updated_after="2026-01-01", tag="ai",
+            )
+        _, kwargs = mock_get.call_args
+        params = kwargs["params"]
+        assert params["category"] == "article"
+        assert params["updatedAfter"] == "2026-01-01"
+        assert params["tag"] == "ai"
+
+    def test_paginates_through_all_pages(self):
+        page1 = _page([_DOC], next_cursor="cursor-2")
+        page2 = _page([_DOC])
+        with patch("local_first_common.readwise.requests.get", side_effect=[page1, page2]) as mock_get:
+            result = list_reader_documents("tok_abc")
+        assert len(result) == 2
+        assert mock_get.call_count == 2
+        second_call_params = mock_get.call_args_list[1].kwargs["params"]
+        assert second_call_params["pageCursor"] == "cursor-2"
+
+    def test_stops_and_returns_partial_results_on_page_failure(self):
+        page1 = _page([_DOC], next_cursor="cursor-2")
+        failing_resp = MagicMock()
+        failing_resp.status_code = 500
+        failing_resp.text = "server error"
+        with patch("local_first_common.readwise.requests.get", side_effect=[page1, failing_resp]):
+            result = list_reader_documents("tok_abc")
+        assert len(result) == 1
+
+    def test_returns_partial_results_on_network_error_mid_pagination(self):
+        page1 = _page([_DOC], next_cursor="cursor-2")
+        with patch(
+            "local_first_common.readwise.requests.get",
+            side_effect=[page1, requests.ConnectionError("timeout")],
+        ):
+            result = list_reader_documents("tok_abc")
+        assert len(result) == 1
