@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from local_first_common.article_fetcher import (
     FeedItem,
+    _derive_metadata_from_rendered_text,
     _is_blocked,
     fetch_article_metadata,
 )
@@ -235,3 +236,95 @@ class TestBlockedDomains:
         item = fetch_article_metadata("")
         assert item is None
         mock_get.assert_not_called()
+
+
+class TestRenderFallback:
+    RENDERED_TWEET = (
+        "Don't miss what's happening\nPeople on X are the first to know.\n"
+        "Log in\nSign up\nArticle\nSee new posts\nConversation\n"
+        "Addy Osmani\n@addyosmani\n83\n583\n2.5K\n809K\n"
+        "Starting more AI agents is easy now, but your cognitive bandwidth "
+        "does not parallelize."
+    )
+
+    def test_renders_when_title_is_missing_and_host_is_in_render_domains(self):
+        with patch("local_first_common.http.fetch_url", return_value=NO_TITLE_HTML):
+            item = fetch_article_metadata(
+                "https://x.com/a/status/1",
+                render_domains=frozenset({"x.com"}),
+                renderer=lambda _u: self.RENDERED_TWEET,
+            )
+        assert item is not None
+        assert "cognitive bandwidth" in item.description
+        assert item.title
+
+    def test_derived_title_skips_the_handle_and_engagement_counts(self):
+        with patch("local_first_common.http.fetch_url", return_value=NO_TITLE_HTML):
+            item = fetch_article_metadata(
+                "https://x.com/a/status/1",
+                render_domains=frozenset({"x.com"}),
+                renderer=lambda _u: self.RENDERED_TWEET,
+            )
+        assert "@addyosmani" not in item.title
+        assert "809K" not in item.title
+        assert item.title.startswith("Starting more AI agents")
+
+    def test_does_not_render_when_host_is_not_in_render_domains(self):
+        calls = []
+        with patch("local_first_common.http.fetch_url", return_value=NO_TITLE_HTML):
+            item = fetch_article_metadata(
+                "https://example.com/no-title",
+                render_domains=frozenset({"x.com"}),
+                renderer=lambda u: calls.append(u) or "unused",
+            )
+        assert item is None
+        assert calls == []
+
+    def test_does_not_render_when_a_title_already_exists(self):
+        calls = []
+        with patch("local_first_common.http.fetch_url", return_value=FALLBACK_HTML):
+            item = fetch_article_metadata(
+                "https://x.com/a/status/1",
+                render_domains=frozenset({"x.com"}),
+                renderer=lambda u: calls.append(u) or "unused",
+            )
+        assert item is not None
+        assert item.title == "Fallback Title Only"
+        assert calls == []
+
+    def test_returns_none_when_rendering_also_produces_no_usable_text(self):
+        with patch("local_first_common.http.fetch_url", return_value=NO_TITLE_HTML):
+            item = fetch_article_metadata(
+                "https://x.com/a/status/1",
+                render_domains=frozenset({"x.com"}),
+                renderer=lambda _u: "",
+            )
+        assert item is None
+
+    def test_returns_none_when_rendering_raises(self):
+        with patch("local_first_common.http.fetch_url", return_value=NO_TITLE_HTML):
+            item = fetch_article_metadata(
+                "https://x.com/a/status/1",
+                render_domains=frozenset({"x.com"}),
+                renderer=lambda _u: (_ for _ in ()).throw(RuntimeError("no browser")),
+            )
+        assert item is None
+
+
+class TestDeriveMetadataFromRenderedText:
+    def test_uses_content_after_the_handle_line(self):
+        title, description = _derive_metadata_from_rendered_text(
+            "Some chrome\n@someone\n42\n1.2K\nThe actual tweet text goes here."
+        )
+        assert title == "The actual tweet text goes here."
+        assert description == "The actual tweet text goes here."
+
+    def test_falls_back_to_the_whole_text_when_no_handle_line_is_found(self):
+        title, _ = _derive_metadata_from_rendered_text("Just some plain rendered text.")
+        assert title == "Just some plain rendered text."
+
+    def test_truncates_title_to_80_chars_and_description_to_500(self):
+        long_text = "@a\n" + ("word " * 200)
+        title, description = _derive_metadata_from_rendered_text(long_text)
+        assert len(title) <= 80
+        assert len(description) <= 500
