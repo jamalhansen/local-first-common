@@ -43,3 +43,8 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "allow_network: test is permitted to make a real HTTP request",
+]
