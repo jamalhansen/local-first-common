@@ -37,6 +37,11 @@ deepseek = ["openai>=2.24.0"]
 gemini = ["google-genai>=1.65.0"]
 pydantic-ai = ["pydantic-ai>=0.0.14"]
 all-providers = ["anthropic>=0.84.0", "groq>=1.0.0", "openai>=2.24.0", "google-genai>=1.65.0", "pydantic-ai>=0.0.14"]
+# Real-browser rendering for pages whose content is injected by client-side JS
+# (e.g. x.com). Not part of a base install: it pulls a ~95MB browser binary via
+# `playwright install chromium`. js_render.py imports playwright lazily, so a
+# tool that never touches a JS-walled domain never pays this cost.
+playwright = ["playwright>=1.40"]
 
 [dependency-groups]
 dev = [
