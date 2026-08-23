@@ -5,6 +5,8 @@ the official API. API docs: https://readwise.io/reader_api
 """
 
 import logging
+import time
+from dataclasses import dataclass
 
 import requests
 
@@ -14,6 +16,40 @@ logger = logging.getLogger(__name__)
 
 _SAVE_URL = "https://readwise.io/api/v3/save/"
 _LIST_URL = "https://readwise.io/api/v3/list/"
+_UPDATE_URL = "https://readwise.io/api/v3/update/{doc_id}/"
+
+# The Reader API allows 20 requests/minute per token. Listing stays well inside
+# that, but archiving a backlog is one request per document and will hit the
+# limit immediately, so anything that loops needs to honour Retry-After.
+_MAX_RETRIES = 4
+_DEFAULT_RETRY_WAIT = 15
+
+
+def _sleep_for_retry(resp: requests.Response) -> int:
+    """Sleep for the interval the API asked for and return the seconds waited."""
+    try:
+        wait = int(resp.headers.get("Retry-After", _DEFAULT_RETRY_WAIT))
+    except (TypeError, ValueError):
+        wait = _DEFAULT_RETRY_WAIT
+    wait = max(1, wait)
+    logger.info("Readwise rate limit hit, waiting %ss", wait)
+    time.sleep(wait)
+    return wait
+
+
+@dataclass
+class ReaderRef:
+    """A Reader document identified well enough to be updated later.
+
+    ``FeedItem`` deliberately drops the document id and location because it
+    models content to read, not a record to mutate. Reconciliation needs both,
+    so it gets its own shape rather than widening FeedItem for every caller.
+    """
+
+    doc_id: str
+    source_url: str
+    title: str
+    location: str
 
 
 def save_to_readwise(
@@ -180,3 +216,124 @@ def list_reader_documents(
             break
 
     return items
+
+
+def list_reader_refs(
+    token: str,
+    *,
+    location: str | None = "new",
+    category: str | None = None,
+) -> list[ReaderRef]:
+    """List Reader documents as updatable references (id, source_url, location).
+
+    Same traversal as ``list_reader_documents`` but preserves the document id and
+    location, which is what an archive or reconcile pass needs. Documents without
+    a ``source_url`` (Reader notes, highlights) are skipped: there is nothing to
+    match them against.
+    """
+    if not token:
+        logger.error("Readwise token is not set — cannot list Reader documents")
+        return []
+
+    refs: list[ReaderRef] = []
+    cursor: str | None = None
+
+    while True:
+        params: dict = {}
+        if location is not None:
+            params["location"] = location
+        if category is not None:
+            params["category"] = category
+        if cursor is not None:
+            params["pageCursor"] = cursor
+
+        for _ in range(_MAX_RETRIES):
+            try:
+                resp = requests.get(
+                    _LIST_URL,
+                    params=params,
+                    headers={"Authorization": f"Token {token}"},
+                    timeout=30,
+                )
+            except requests.RequestException as e:
+                logger.warning("Failed to list Reader documents: %s", e)
+                return refs
+
+            if resp.status_code == 429:
+                _sleep_for_retry(resp)
+                continue
+            break
+        else:
+            logger.warning("Gave up listing Reader documents after repeated rate limiting")
+            return refs
+
+        if resp.status_code != 200:
+            logger.warning(
+                "Readwise API returned %s listing documents: %s",
+                resp.status_code, resp.text[:200],
+            )
+            return refs
+
+        data = resp.json()
+        for doc in data.get("results", []):
+            source_url = doc.get("source_url") or ""
+            if not source_url:
+                continue
+            refs.append(
+                ReaderRef(
+                    doc_id=doc.get("id") or "",
+                    source_url=source_url,
+                    title=doc.get("title") or "",
+                    location=doc.get("location") or "",
+                )
+            )
+
+        cursor = data.get("nextPageCursor")
+        if not cursor:
+            break
+
+    return refs
+
+
+def archive_reader_document(token: str, doc_id: str) -> bool:
+    """Move a Reader document to the archive location.
+
+    Returns True on success, False on any error. Retries on 429 rather than
+    failing, because the caller is normally archiving a backlog in a loop and a
+    dropped item would silently stay in the queue.
+    """
+    if not token:
+        logger.error("Readwise token is not set — cannot archive document")
+        return False
+    if not doc_id:
+        logger.warning("Cannot archive a Reader document without an id")
+        return False
+
+    url = _UPDATE_URL.format(doc_id=doc_id)
+    for _ in range(_MAX_RETRIES):
+        try:
+            resp = requests.patch(
+                url,
+                json={"location": "archive"},
+                headers={"Authorization": f"Token {token}"},
+                timeout=30,
+            )
+        except requests.RequestException as e:
+            logger.warning("Failed to archive Reader document %s: %s", doc_id, e)
+            return False
+
+        if resp.status_code == 429:
+            _sleep_for_retry(resp)
+            continue
+
+        if resp.status_code in (200, 201, 204):
+            return True
+
+        logger.warning(
+            "Readwise API returned %s archiving %s: %s",
+            resp.status_code, doc_id, resp.text[:200],
+        )
+        return False
+
+    logger.warning("Gave up archiving %s after repeated rate limiting", doc_id)
+    return False
