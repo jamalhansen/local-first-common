@@ -3,13 +3,20 @@
 REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
 VERIFY_LOG ?= /tmp/make-verify-latest.log
 
-.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
 
 ops-report:
 	@uv run pipeline-analysis/operational_log_report.py
+
+test-pipeline:
+	@echo "Running photo pipeline integration tests..."
+	@cd photo-metadata-scrubber && uv sync -q
+	@cd photo-scaler && uv sync -q
+	@cd photo-renamer && uv sync -q
+	@uv run --project photo-metadata-scrubber pytest tests/test_photo_pipeline.py -v
 
 use-local:
 	@python3 local-first-common/scripts/toggle_source.py local
