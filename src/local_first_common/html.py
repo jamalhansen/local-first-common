@@ -1,5 +1,6 @@
 import re
 from typing import NamedTuple
+from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 
 class ArticleMetadata(NamedTuple):
@@ -50,29 +51,62 @@ def extract_metadata(html: str) -> ArticleMetadata:
 
     return ArticleMetadata(title=title, description=description, published_date=published)
 
-def extract_main_content(html: str) -> str:
-    """Extract the primary text content from an HTML string.
-    
-    Removes noise (nav, footer, script, etc.) and prefers <article> or <main> tags.
-    """
-    soup = BeautifulSoup(html, "html.parser")
+def _select_content_container(soup: BeautifulSoup):
+    """Strip chrome and return the element most likely to hold the article body.
 
-    # Remove noise
+    Shared by extract_main_content and extract_outbound_links so both agree on
+    what counts as "the article" -- a link only counts as a citation if a
+    human reading the piece would actually encounter it, not one buried in
+    the same nav/footer chrome both functions already exclude.
+    """
     for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
         tag.decompose()
 
-    # Selection priority
-    container = None
     for selector in ["article", "main", "[role='main']", "body"]:
         container = soup.select_one(selector)
         if container:
-            break
+            return container
 
-    if not container:
-        container = soup
+    return soup
+
+
+def extract_main_content(html: str) -> str:
+    """Extract the primary text content from an HTML string.
+
+    Removes noise (nav, footer, script, etc.) and prefers <article> or <main> tags.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    container = _select_content_container(soup)
 
     text = container.get_text(separator="\n", strip=True)
-    
+
     # Cleanup whitespace
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def extract_outbound_links(html: str, base_url: str) -> list[str]:
+    """Return absolute http(s) links found within an article's main content.
+
+    Uses the same container selection as extract_main_content, so links from
+    navigation, footers, and sidebars are excluded -- only links a reader
+    would actually encounter in the article body count. Relative links are
+    resolved against base_url. Order is preserved; duplicates are dropped.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    container = _select_content_container(soup)
+
+    links: list[str] = []
+    seen: set[str] = set()
+    for a in container.find_all("a", href=True):
+        href = a["href"].strip()
+        if not href or href.startswith("#"):
+            continue
+        absolute = urljoin(base_url, href)
+        if urlparse(absolute).scheme not in ("http", "https"):
+            continue
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        links.append(absolute)
+    return links

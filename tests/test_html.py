@@ -63,3 +63,60 @@ def test_extract_main_content():
     assert "Nav links" not in text
     assert "Footer" not in text
     assert "alert('noise')" not in text
+
+
+class TestExtractOutboundLinks:
+    def test_extracts_links_from_article_body(self):
+        content = """
+        <html><body>
+          <nav><a href="https://example.com/nav-link">Nav</a></nav>
+          <article>
+            <p>See <a href="https://other.com/post">this post</a> for more.</p>
+          </article>
+          <footer><a href="https://example.com/footer-link">Footer</a></footer>
+        </body></html>
+        """
+        links = html.extract_outbound_links(content, base_url="https://example.com/article")
+        assert links == ["https://other.com/post"]
+
+    def test_resolves_relative_links_against_base_url(self):
+        content = """
+        <article><a href="/other-post">Relative link</a></article>
+        """
+        links = html.extract_outbound_links(content, base_url="https://example.com/some/article")
+        assert links == ["https://example.com/other-post"]
+
+    def test_skips_fragment_only_links(self):
+        content = '<article><a href="#section-2">Jump</a></article>'
+        links = html.extract_outbound_links(content, base_url="https://example.com/article")
+        assert links == []
+
+    def test_skips_non_http_schemes(self):
+        content = """
+        <article>
+          <a href="mailto:someone@example.com">Email</a>
+          <a href="javascript:void(0)">JS</a>
+          <a href="https://real-link.com/">Real</a>
+        </article>
+        """
+        links = html.extract_outbound_links(content, base_url="https://example.com/article")
+        assert links == ["https://real-link.com/"]
+
+    def test_deduplicates_repeated_links_preserving_order(self):
+        content = """
+        <article>
+          <a href="https://a.com/1">First</a>
+          <a href="https://b.com/1">Second</a>
+          <a href="https://a.com/1">First again</a>
+        </article>
+        """
+        links = html.extract_outbound_links(content, base_url="https://example.com/article")
+        assert links == ["https://a.com/1", "https://b.com/1"]
+
+    def test_no_container_falls_back_to_whole_document(self):
+        content = '<html><body><a href="https://a.com/1">Only link</a></body></html>'
+        links = html.extract_outbound_links(content, base_url="https://example.com/article")
+        assert links == ["https://a.com/1"]
+
+    def test_empty_html_returns_empty_list(self):
+        assert html.extract_outbound_links("", base_url="https://example.com/article") == []
