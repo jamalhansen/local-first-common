@@ -99,6 +99,22 @@ class TestSaveToReadwise:
         _, kwargs = mock_post.call_args
         assert "tags" not in kwargs["json"]
 
+    def test_location_omitted_when_not_given(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+            save_to_readwise("tok_abc", "https://example.com/article")
+        _, kwargs = mock_post.call_args
+        assert "location" not in kwargs["json"]
+
+    def test_location_included_when_given(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+            save_to_readwise("tok_abc", "https://example.com/article", location="archive")
+        _, kwargs = mock_post.call_args
+        assert kwargs["json"]["location"] == "archive"
+
     def test_includes_discovery_metadata_as_tags(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201

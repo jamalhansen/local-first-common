@@ -59,6 +59,44 @@ def fetch_rendered_text(
             browser.close()
 
 
+def fetch_rendered_html(
+    url: str,
+    timeout_ms: int = 20_000,
+    settle_ms: int = 3_000,
+    sync_playwright_fn=None,
+) -> str:
+    """Load ``url`` in headless Chromium and return the rendered page's HTML.
+
+    Sibling to fetch_rendered_text. That one returns raw visible text, tuned
+    for a caller deriving title/description from a social post's handle-then-
+    counts layout. This one returns HTML so a caller that wants proper
+    content extraction can run it through html.extract_main_content the same
+    way a plain fetch's response already is -- inner_text("body") captures
+    nav/footer/ad chrome right along with the actual content, which
+    extract_main_content is specifically built to strip out.
+
+    Raises RenderUnavailable if playwright is not installed.
+    """
+    if sync_playwright_fn is None:
+        try:
+            from playwright.sync_api import sync_playwright as sync_playwright_fn
+        except ImportError as e:
+            raise RenderUnavailable(
+                "playwright is not installed. Install with: "
+                "uv add 'local-first-common[playwright]' && playwright install chromium"
+            ) from e
+
+    with sync_playwright_fn() as p:
+        browser = p.chromium.launch()
+        try:
+            page = browser.new_page()
+            page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+            page.wait_for_timeout(settle_ms)
+            return page.content()
+        finally:
+            browser.close()
+
+
 def host_of(url: str) -> str:
     """Return the lowercased hostname of ``url``, without a leading ``www.``.
 

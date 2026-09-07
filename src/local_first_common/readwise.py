@@ -62,6 +62,7 @@ def save_to_readwise(
     published_date: str = "",
     search_term: str | None = None,
     platform: str | None = None,
+    location: str | None = None,
 ) -> bool:
     """Save a URL to the Readwise Reader inbox.
 
@@ -74,6 +75,13 @@ def save_to_readwise(
         published_date: ISO 8601 date string e.g. "2026-03-11" (optional).
         search_term:    Discovery search term to add as a tag (optional).
         platform:       Discovery platform to add as a tag (optional).
+        location:       Reader location to file the document under -- "new",
+                         "later", "archive", or "feed" (optional; Reader
+                         defaults to "new" when omitted). Pass "archive" for
+                         an item that's also landing somewhere else the
+                         caller already treats as the actionable copy, so it
+                         doesn't sit as a second unread item competing for
+                         attention.
 
     Returns:
         True on success (HTTP 200 or 201), False on any error.
@@ -98,6 +106,8 @@ def save_to_readwise(
         payload["tags"] = all_tags
     if published_date:
         payload["published_date"] = published_date
+    if location:
+        payload["location"] = location
 
     try:
         resp = requests.post(
