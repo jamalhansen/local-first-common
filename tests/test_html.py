@@ -65,6 +65,63 @@ def test_extract_main_content():
     assert "alert('noise')" not in text
 
 
+class TestExtractLinkContexts:
+    def test_captures_anchor_text_and_surrounding_paragraph(self):
+        content = """
+        <article>
+          <p>Before this, check out <a href="https://other.com/post">their launch post</a> for details.</p>
+        </article>
+        """
+        results = html.extract_link_contexts(content, base_url="https://example.com/article")
+        assert len(results) == 1
+        lc = results[0]
+        assert lc.url == "https://other.com/post"
+        assert lc.anchor_text == "their launch post"
+        assert "check out" in lc.surrounding_text
+        assert "for details" in lc.surrounding_text
+
+    def test_uses_list_item_as_surrounding_block(self):
+        content = """
+        <article>
+          <ul><li>See also <a href="https://other.com/x">this tool</a>.</li></ul>
+        </article>
+        """
+        results = html.extract_link_contexts(content, base_url="https://example.com/article")
+        assert "See also" in results[0].surrounding_text
+
+    def test_falls_back_to_anchor_text_when_no_block_ancestor(self):
+        content = '<article><a href="https://other.com/x">bare link</a></article>'
+        results = html.extract_link_contexts(content, base_url="https://example.com/article")
+        assert results[0].surrounding_text == "bare link"
+
+    def test_truncates_long_surrounding_text(self):
+        long_para = "word " * 200
+        content = f'<article><p>{long_para}<a href="https://other.com/x">link</a></p></article>'
+        results = html.extract_link_contexts(content, base_url="https://example.com/article")
+        assert len(results[0].surrounding_text) <= 400
+
+    def test_excludes_nav_and_footer_same_as_extract_outbound_links(self):
+        content = """
+        <html><body>
+          <nav><a href="https://example.com/nav-link">Nav</a></nav>
+          <article><p>Real <a href="https://other.com/post">citation</a>.</p></article>
+          <footer><a href="https://example.com/footer-link">Footer</a></footer>
+        </body></html>
+        """
+        results = html.extract_link_contexts(content, base_url="https://example.com/article")
+        assert [lc.url for lc in results] == ["https://other.com/post"]
+
+    def test_deduplicates_by_url(self):
+        content = """
+        <article>
+          <p><a href="https://a.com/1">First</a></p>
+          <p><a href="https://a.com/1">First again</a></p>
+        </article>
+        """
+        results = html.extract_link_contexts(content, base_url="https://example.com/article")
+        assert len(results) == 1
+
+
 class TestExtractOutboundLinks:
     def test_extracts_links_from_article_body(self):
         content = """

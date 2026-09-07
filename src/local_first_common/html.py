@@ -85,18 +85,37 @@ def extract_main_content(html: str) -> str:
     return text.strip()
 
 
-def extract_outbound_links(html: str, base_url: str) -> list[str]:
-    """Return absolute http(s) links found within an article's main content.
+_CONTEXT_BLOCK_TAGS = ("p", "li", "blockquote", "td", "dd", "h1", "h2", "h3", "h4", "h5", "h6")
 
-    Uses the same container selection as extract_main_content, so links from
-    navigation, footers, and sidebars are excluded -- only links a reader
-    would actually encounter in the article body count. Relative links are
-    resolved against base_url. Order is preserved; duplicates are dropped.
+
+class LinkContext(NamedTuple):
+    """An outbound link plus the text around it.
+
+    The surrounding text is what lets a caller judge citation *intent* --
+    "check out our product" and "this analysis is worth reading" point at
+    completely different kinds of destination pages, but look identical if
+    you only ever look at the destination page's own title/description.
+    """
+
+    url: str
+    anchor_text: str
+    surrounding_text: str
+
+
+def extract_link_contexts(html: str, base_url: str) -> list[LinkContext]:
+    """Return outbound links from an article's main content, each paired with
+    its anchor text and the surrounding sentence/paragraph/list-item.
+
+    Same container selection as extract_main_content, so navigation, footer,
+    and sidebar links are excluded -- only links a reader would actually
+    encounter in the article body count. Relative links are resolved against
+    base_url. Order is preserved; duplicates are dropped (first occurrence
+    wins).
     """
     soup = BeautifulSoup(html, "html.parser")
     container = _select_content_container(soup)
 
-    links: list[str] = []
+    results: list[LinkContext] = []
     seen: set[str] = set()
     for a in container.find_all("a", href=True):
         href = a["href"].strip()
@@ -108,5 +127,19 @@ def extract_outbound_links(html: str, base_url: str) -> list[str]:
         if absolute in seen:
             continue
         seen.add(absolute)
-        links.append(absolute)
-    return links
+
+        anchor_text = a.get_text(" ", strip=True)
+        block = a.find_parent(_CONTEXT_BLOCK_TAGS)
+        surrounding = (block.get_text(" ", strip=True) if block else anchor_text)[:400]
+
+        results.append(LinkContext(url=absolute, anchor_text=anchor_text, surrounding_text=surrounding))
+    return results
+
+
+def extract_outbound_links(html: str, base_url: str) -> list[str]:
+    """Return absolute http(s) links found within an article's main content.
+
+    Thin wrapper over extract_link_contexts for callers that only need the
+    URLs. See that function for the selection/filtering rules.
+    """
+    return [lc.url for lc in extract_link_contexts(html, base_url)]
