@@ -3,7 +3,7 @@
 REPOS = $(shell ls -d */ | grep -vE 'local-ai-tool-template/|tests/')
 VERIFY_LOG ?= /tmp/make-verify-latest.log
 
-.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pipeline-publish pipeline-photos pipeline-weekly pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -17,6 +17,40 @@ test-pipeline:
 	@cd photo-scaler && uv sync -q
 	@cd photo-renamer && uv sync -q
 	@uv run --project photo-metadata-scrubber pytest tests/test_photo_pipeline.py -v
+
+pipeline-publish:
+	@if [ -z "$(POST)" ]; then \
+		echo "Usage: make pipeline-publish POST=path/to/draft.md [DRY_RUN=1]"; \
+		exit 1; \
+	fi
+	@echo "=== [1/4] Brand Voice Validation ==="
+	@uv run --project brand-voice-validator brand-voice-validator $(POST) $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+	@echo "=== [2/4] Frontmatter Validation ==="
+	@uv run --project frontmatter-validator fm-validate $(POST)
+	@echo "=== [3/4] Series Cross-Link Suggestions ==="
+	@uv run --project series-cross-link-suggester cross-link scan $(POST) $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+	@echo "=== [4/4] Promotional Copy Generation ==="
+	@uv run --project promo-generator promo $(POST) $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+
+pipeline-photos:
+	@if [ -z "$(DIR)" ]; then \
+		echo "Usage: make pipeline-photos DIR=path/to/photos [MAX_DIM=1600] [DRY_RUN=1]"; \
+		exit 1; \
+	fi
+	@echo "=== [1/3] Renaming Photos (Vision LLM) ==="
+	@uv run --project photo-renamer rename-photo $(DIR) $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+	@echo "=== [2/3] Scrubbing GPS & Metadata ==="
+	@uv run --project photo-metadata-scrubber scrub-photo $(DIR) $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+	@echo "=== [3/3] Scaling Photos ==="
+	@uv run --project photo-scaler scale-photo $(DIR) --max $${MAX_DIM:-1600} $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+
+pipeline-weekly:
+	@echo "=== [1/3] Weekly Thread Triage ==="
+	@uv run --project weekly-thread-triage thread-triage scan $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+	@echo "=== [2/3] Weekly Review Generator ==="
+	@uv run --project weekly-review-generator weekly-review $(if $(filter 1,$(DRY_RUN)),--dry-run,)
+	@echo "=== [3/3] Newsletter Prep Assistant ==="
+	@uv run --project newsletter-prep-assistant newsletter-prep $(if $(filter 1,$(DRY_RUN)),--dry-run,)
 
 use-local:
 	@python3 local-first-common/scripts/toggle_source.py local
@@ -357,6 +391,9 @@ help:
 	@echo "  make upgrade-locks - Upgrade local-first-common in all uv.lock files"
 	@echo "  make usage         - Show LLM usage stats by tool from processing_log"
 	@echo "  make ops-report    - Show warning/error operational report from operational_log"
+	@echo "  make pipeline-publish POST=... [DRY_RUN=1] - Run blog publishing pipeline (voice + fm + links + promo)"
+	@echo "  make pipeline-photos DIR=... [DRY_RUN=1]   - Run photo processing pipeline (rename + scrub + scale)"
+	@echo "  make pipeline-weekly [DRY_RUN=1]           - Run weekly review pipeline (thread-triage + review + newsletter)"
 
 list:
 	@echo "Local-first AI tools:"

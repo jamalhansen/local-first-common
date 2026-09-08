@@ -57,3 +57,30 @@ class TestInitConfigOption:
         result = runner.invoke(_make_app(), [])
         assert result.exit_code == 0, result.output
         assert called is False
+
+
+class TestJsonOption:
+    def test_json_option_in_app(self):
+        from local_first_common.cli import json_option
+
+        app = typer.Typer()
+
+        @app.command()
+        def cmd(json_out: Annotated[bool, json_option()] = False):
+            if json_out:
+                typer.echo('{"status": "ok"}')
+            else:
+                typer.echo("status: ok")
+
+        res1 = runner.invoke(app, [])
+        assert res1.exit_code == 0
+        assert "status: ok" in res1.output
+
+        res2 = runner.invoke(app, ["--json"])
+        assert res2.exit_code == 0
+        assert '{"status": "ok"}' in res2.output
+
+        res3 = runner.invoke(app, ["-j"])
+        assert res3.exit_code == 0
+        assert '{"status": "ok"}' in res3.output
+

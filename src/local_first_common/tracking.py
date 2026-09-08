@@ -488,7 +488,10 @@ class _TrackedRun:
         if hasattr(result, "usage") and callable(result.usage):
             try:
                 usage = result.usage()
-                if hasattr(usage, "request_tokens"):  # pydantic-ai 0.0.14+
+                if hasattr(usage, "input_tokens"):  # pydantic-ai newer style
+                    self._run.input_tokens = usage.input_tokens
+                    self._run.output_tokens = usage.output_tokens
+                elif hasattr(usage, "request_tokens"):  # pydantic-ai 0.0.14+
                     self._run.input_tokens = usage.request_tokens
                     self._run.output_tokens = usage.response_tokens
                 elif hasattr(usage, "prompt_tokens"):  # older or other styles

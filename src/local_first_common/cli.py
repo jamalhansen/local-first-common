@@ -84,6 +84,15 @@ def pipe_option() -> Any:
     )
 
 
+def json_option() -> Any:
+    """Return a Typer Option for JSON output."""
+    return typer.Option(
+        "--json",
+        "-j",
+        help="Output results as JSON for programmatic consumption and piping.",
+    )
+
+
 def init_config_callback(tool_name: str, defaults: dict):
     def callback(value: bool):
         if value:
@@ -136,6 +145,8 @@ def resolve_provider(
         setup_logging(level=logging.DEBUG)
     elif verbose:
         setup_logging(level=logging.INFO)
+    else:
+        setup_logging(level=logging.WARNING)
 
     if provider_name not in providers:
         valid = ", ".join(providers.keys())
@@ -145,3 +156,4 @@ def resolve_provider(
 
     cls = providers[provider_name]
     return cls(model=model)
+
