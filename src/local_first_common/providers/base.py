@@ -257,6 +257,8 @@ class BaseProvider(ABC):
                 example[name] = json.loads(self._get_example_json(annotation))
             elif annotation is int:
                 example[name] = 0
+            elif annotation is float:
+                example[name] = 0.0
             elif annotation is bool:
                 example[name] = True
             else:

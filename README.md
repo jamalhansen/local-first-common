@@ -2,6 +2,8 @@
 
 Shared utilities for local-first AI tools. Extracts the common plumbing — LLM providers, config management, logging, Obsidian vault I/O, social media fetching, Typer CLI helpers, and test utilities.
 
+See [ROADMAP.md](ROADMAP.md) for overall ecosystem architecture and roadmap, and [STANDARDS.md](STANDARDS.md) for CLI and development standards.
+
 ## Installation
 
 Add as a git dependency in any project's `pyproject.toml`. Use extras to pull in whichever cloud provider SDKs you need — Ollama needs none:

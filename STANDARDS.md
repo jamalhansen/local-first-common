@@ -39,6 +39,44 @@ To ensure a predictable and safe user experience across the entire toolkit, all 
 
 - **Behavior**: Show raw prompts sent to the LLM and the raw responses received.
 
+### `--json` (short: `-j`)
+
+- **Behavior**: Output results in machine-readable JSON for piping, scripting, or consumption by agents.
+- **Helper**: Use `json_option()` from `local_first_common.cli`.
+- **Output convention**: When `--json` is active, write pure JSON to `stdout` and send human-facing logs/diagnostics to `stderr`.
+
+### Stdin Streaming (`-` / `--pipe`)
+
+- **Behavior**: Allow reading input from `stdin` when `-` is passed as a file argument or `--pipe` is supplied.
+- **Helper**: Use `pipe_option()` from `local_first_common.cli`.
+- **Unix convention**: Stream transformed/validated content to `stdout`, and write validation errors/diagnostics to `stderr`.
+
+---
+
+## Tool Structure & Module Naming Standards
+
+To avoid ambiguity in IDEs and multi-repo searches, **the generic module name `logic.py` is deprecated across all tools**.
+
+### Standard File Layout
+```text
+my-tool/
+├── pyproject.toml              # [project.scripts] my-tool = "my_tool.cli:app"
+├── src/
+│   ├── main.py                 # Minimal 3-line stub: from my_tool.cli import app; app()
+│   └── my_tool/
+│       ├── __init__.py
+│       ├── cli.py              # CLI ONLY: Typer app, options, Rich console, exit codes
+│       ├── core.py             # Pure domain logic / operations
+│       ├── schema.py           # Pydantic schemas / models (if applicable)
+│       └── prompts.py          # LLM prompt templates (if applicable)
+```
+
+1. **`cli.py`**: Contains Typer CLI commands, options, terminal printing, and `typer.Exit`.
+2. **Domain Modules (`core.py`, `scanner.py`, etc.)**: Pure Python functions that perform operations and return values without CLI dependencies.
+3. Entry points in `pyproject.toml` should map to `<package>.cli:app`.
+
+See [ROADMAP.md](ROADMAP.md) for the phased migration plan and architectural roadmap.
+
 ---
 
 ## Run Tracking
