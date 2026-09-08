@@ -352,8 +352,12 @@ fix-scriptable:
 		if [ -f "$$repo/pyproject.toml" ] && ! grep -q "^\[project\.scripts\]" "$$repo/pyproject.toml"; then \
 			repo_name=$$(basename "$$repo"); \
 			pkg_name=$$(echo "$$repo_name" | tr '-' '_'); \
-			echo "  → Adding script '$$repo_name' to $$repo"; \
-			printf "\n[project.scripts]\n$$repo_name = \"$$pkg_name.logic:app\"\n" >> "$$repo/pyproject.toml"; \
+			entry_mod="cli"; \
+			if [ ! -f "$$repo/src/$$pkg_name/cli.py" ] && [ -f "$$repo/src/$$pkg_name/logic.py" ]; then \
+				entry_mod="logic"; \
+			fi; \
+			echo "  → Adding script '$$repo_name' ($$pkg_name.$$entry_mod:app) to $$repo"; \
+			printf "\n[project.scripts]\n$$repo_name = \"$$pkg_name.$$entry_mod:app\"\n" >> "$$repo/pyproject.toml"; \
 		fi; \
 	done
 
