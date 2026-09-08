@@ -7,6 +7,7 @@ a param declaration. Since the parameter is typed `bool`, this crashed every
 call to any command using it with "Invalid value for '--init-config':
 '--init-config' is not a valid boolean" -- not just --init-config itself.
 """
+from typing import Annotated
 import typer
 from typer.testing import CliRunner
 
@@ -20,7 +21,9 @@ def _make_app():
 
     @app.command()
     def run(
-        init_config: bool = init_config_option("test-tool", {"provider": "local"}),
+        init_config: Annotated[
+            bool, init_config_option("test-tool", {"provider": "local"})
+        ] = False,
     ):
         typer.echo("ran normally")
 
