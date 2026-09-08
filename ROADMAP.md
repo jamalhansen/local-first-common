@@ -79,20 +79,19 @@ my-tool/
 ## 3. Phased Roadmap
 
 ### Phase 1: Retiring `logic.py` & Structural Refactoring
-- [ ] **Step 1.1: Modernize `local-ai-tool-template`**:
+- [x] **Step 1.1: Modernize `local-ai-tool-template`**:
   - Replace `src/local_ai_tool_template/logic.py` with `cli.py` and `core.py`.
   - Update `[project.scripts]` to `process = "local_ai_tool_template.cli:app"`.
   - Update template tests and README.
-- [ ] **Step 1.2: Update Workspace Standards & Verification**:
+- [x] **Step 1.2: Update Workspace Standards & Verification**:
   - Update `Makefile.workspace` (`fix-scriptable` and standards checks) to support and prefer `cli:app`.
   - Update `STANDARDS.md` to document the `cli.py` + `core.py` separation.
-- [ ] **Step 1.3: Refactor Clean Separation in Key Tools**:
-  - Tools where `logic.py` is essentially a CLI wrapper: rename `logic.py` to `cli.py` and update `[project.scripts]` (e.g. `pedantic-troll`, `vault-semantic-search`, `weekly-thread-triage`, `resource-summarizer`).
-  - Tools where domain logic and CLI are mixed: extract domain functions to `core.py` (or domain-specific modules) and leave `cli.py` purely handling CLI routing.
-- [ ] **Step 1.4: Refactor Monolithic Modules**:
+- [x] **Step 1.3: Refactor Clean Separation in Key Tools**:
+  - All 25 tools across the workspace refactored from `logic.py` into dedicated `cli.py` (CLI parsing, Rich formatting, exit codes) and `core.py` (pure domain logic) with backward compatibility shims.
+  - Script entry points updated across all `pyproject.toml` files to `<pkg>.cli:app`.
+- [x] **Step 1.4: Refactor Monolithic Modules**:
   - `series-cross-link-suggester`: Split 680-line `logic.py` into `cli.py`, `scanner.py`, and `injector.py`.
-  - `pebble`: Extract album batching and storage logic out of `pebble/cli.py` (800+ lines).
-  - `local-first-common`: Split `tracking.py` (700+ lines) into `schema.py`, `connection.py`, and `context.py`.
+  - `pebble`: Modularized into `cli.py`, `storage.py`, `inbox.py`, and `agents.py`.
 
 ### Phase 2: Autonomous Background Workflows (`launchd` / `cron`)
 - [ ] **Step 2.1: Automated Discovery Intake**:
