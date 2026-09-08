@@ -15,16 +15,19 @@ if pytest is not None:
 
     @pytest.fixture(autouse=True, scope="session")
     def isolate_tracking_db(tmp_path_factory):
-        """Redirect the tracking DB to a temp path so tests never write to the real DB.
+        """Redirect tracking and error log DBs to temp paths so tests never write to real DBs.
 
         Import this fixture in a repo's tests/conftest.py to activate it::
 
             from local_first_common.testing import isolate_tracking_db  # noqa: F401
         """
-        db = tmp_path_factory.mktemp("tracking") / "test_tracking.duckdb"
-        os.environ["LOCAL_FIRST_TRACKING_DB"] = str(db)
+        tracking_db = tmp_path_factory.mktemp("tracking") / "test_tracking.duckdb"
+        error_db = tmp_path_factory.mktemp("logging") / "test_error_log.duckdb"
+        os.environ["LOCAL_FIRST_TRACKING_DB"] = str(tracking_db)
+        os.environ["LOCAL_FIRST_ERROR_LOG_DB"] = str(error_db)
         yield
         os.environ.pop("LOCAL_FIRST_TRACKING_DB", None)
+        os.environ.pop("LOCAL_FIRST_ERROR_LOG_DB", None)
 
 
 _AUTO = object()

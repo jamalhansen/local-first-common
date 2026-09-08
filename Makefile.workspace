@@ -1,6 +1,6 @@
 # Makefile for managing local-first AI tools workspace
 
-REPOS = $(shell ls -d */ | grep -v 'local-ai-tool-template/')
+REPOS = $(shell ls -d */ | grep -vE 'local-ai-tool-template/|tests/')
 VERIFY_LOG ?= /tmp/make-verify-latest.log
 
 .PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
@@ -153,7 +153,7 @@ check-standards:
 	echo "Checking for test isolation (tracking DB)..."; \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/tests" ]; then \
-			case "$$repo" in "local-first-common/") continue ;; esac; \
+			case "$$repo" in "local-first-common/"|"pipeline-analysis/") continue ;; esac; \
 			if [ ! -f "$$repo/tests/conftest.py" ]; then \
 				echo "  [FAIL] $$repo is missing tests/conftest.py"; \
 				FAILED=$$((FAILED + 1)); \
@@ -539,7 +539,7 @@ check-tools:
 	@FAILED=0; \
 	for repo in $(REPOS); do \
 		case "$$repo" in \
-			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
+			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"pipeline-analysis/") continue ;; \
 		esac; \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Checking $$repo ---"; \

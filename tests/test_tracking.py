@@ -497,3 +497,41 @@ class TestTrackedFetch:
         row = _last_row(db, table="fetch_log")
         assert row["source_url"] == "https://mastodon.social/@user/post/999"
         assert row["source_platform"] == "mastodon"
+
+    def test_cross_db_tool_reregistered(self, tmp_path):
+        """When tool.id was assigned in a different DB, tracked_fetch registers it in target DB."""
+        db1 = tmp_path / "db1.duckdb"
+        db2 = tmp_path / "db2.duckdb"
+        # Register in db1 to get an ID (e.g. 1)
+        tool = register_tool("cross-tool", db_path=db1)
+        assert tool.id is not None
+
+        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
+            with tracked_fetch(tool, "https://example.com/target", db_path=db2):
+                pass
+
+        # Target DB db2 should have the fetch log entry without foreign key error
+        row = _last_row(db2, table="fetch_log")
+        assert row["url"] == "https://example.com/target"
+
+    def test_log_run_coerces_mock_objects(self, tmp_path):
+        """MagicMock objects passed for model, tokens, etc. do not crash DuckDB serialization."""
+        from unittest.mock import MagicMock
+
+        db = tmp_path / "mock_test.duckdb"
+        mock_val = MagicMock()
+        log_run(
+            "mock-tool",
+            mock_val,
+            source_location=mock_val,
+            item_count=mock_val,
+            input_tokens=mock_val,
+            output_tokens=mock_val,
+            duration_seconds=mock_val,
+            db_path=db,
+        )
+        row = _last_row(db, table="processing_log")
+        assert row["tool_name"] == "mock-tool"
+        assert row["input_tokens"] is None
+        assert row["output_tokens"] is None
+

@@ -5,10 +5,13 @@ import pytest
 @pytest.fixture(autouse=True, scope="session")
 def _isolate_tracking_db(tmp_path_factory):
     """Redirect the tracking DB to a temp path so tests never write to the real DB."""
-    db = tmp_path_factory.mktemp("tracking") / "test_tracking.duckdb"
-    os.environ["LOCAL_FIRST_TRACKING_DB"] = str(db)
+    tracking_db = tmp_path_factory.mktemp("tracking") / "test_tracking.duckdb"
+    error_db = tmp_path_factory.mktemp("logging") / "test_error_log.duckdb"
+    os.environ["LOCAL_FIRST_TRACKING_DB"] = str(tracking_db)
+    os.environ["LOCAL_FIRST_ERROR_LOG_DB"] = str(error_db)
     yield
     os.environ.pop("LOCAL_FIRST_TRACKING_DB", None)
+    os.environ.pop("LOCAL_FIRST_ERROR_LOG_DB", None)
 
 
 @pytest.fixture(autouse=True)

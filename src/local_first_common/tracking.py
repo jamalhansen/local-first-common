@@ -337,18 +337,49 @@ def log_run(
     if model is not None and not isinstance(model, str):
         model = str(model)
 
+    def _to_int_or_none(val: object | None) -> int | None:
+        if val is None or isinstance(val, bool):
+            return None
+        if isinstance(val, int):
+            return val
+        if isinstance(val, str):
+            try:
+                return int(val)
+            except ValueError:
+                return None
+        return None
+
+    def _to_float_or_none(val: object | None) -> float | None:
+        if val is None or isinstance(val, bool):
+            return None
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            try:
+                return float(val)
+            except ValueError:
+                return None
+        return None
+
+    def _to_str_or_none(val: object | None) -> str | None:
+        if val is None:
+            return None
+        if getattr(type(val), "__module__", "").startswith("unittest.mock"):
+            return None
+        return str(val)
+
     payload = [
         tool_name,
         model,
-        source_location,
-        item_count,
-        input_tokens,
-        output_tokens,
-        duration_seconds,
-        success,
-        error_message,
-        xml_fallbacks,
-        parse_errors,
+        _to_str_or_none(source_location),
+        _to_int_or_none(item_count),
+        _to_int_or_none(input_tokens),
+        _to_int_or_none(output_tokens),
+        _to_float_or_none(duration_seconds),
+        bool(success),
+        _to_str_or_none(error_message),
+        _to_int_or_none(xml_fallbacks),
+        _to_int_or_none(parse_errors),
     ]
 
     if _batched_mode_enabled():
@@ -633,10 +664,20 @@ class _FetchContext:
             conn = duckdb.connect(str(path))
             try:
                 _ensure_schema(conn)
+                tool_id = self.tool.id
+                if self.tool.name:
+                    row = conn.execute(
+                        "SELECT id FROM tools WHERE id = ?;", [self.tool.id]
+                    ).fetchone()
+                    if not row:
+                        conn.execute(_UPSERT_TOOL, [self.tool.name])
+                        row = conn.execute(_SELECT_TOOL_ID, [self.tool.name]).fetchone()
+                        if row:
+                            tool_id = row[0]
                 conn.execute(
                     _INSERT_FETCH,
                     [
-                        self.tool.id,
+                        tool_id,
                         self.url,
                         domain,
                         self.source_url,
