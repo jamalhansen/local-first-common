@@ -159,8 +159,11 @@ def resolve_provider(
         )
 
     cls = providers[provider_name]
+    kwargs = {"model": model}
+    if debug:
+        kwargs["debug"] = True
     try:
-        primary = cls(model=model, debug=debug)
+        primary = cls(**kwargs)
     except TypeError:
         primary = cls(model=model)
 
@@ -174,8 +177,11 @@ def resolve_provider(
             if fb_prov_name in providers and fb_prov_name not in ("ollama", "local"):
                 try:
                     fb_cls = providers[fb_prov_name]
+                    fb_kwargs = {"model": fb_model_name}
+                    if debug:
+                        fb_kwargs["debug"] = True
                     try:
-                        fb_instance = fb_cls(model=fb_model_name, debug=debug)
+                        fb_instance = fb_cls(**fb_kwargs)
                     except TypeError:
                         fb_instance = fb_cls(model=fb_model_name)
                     return FallbackProvider(primary, fb_instance, debug=debug)
