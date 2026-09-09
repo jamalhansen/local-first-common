@@ -107,8 +107,8 @@ my-tool/
 - [x] **Step 3.1: Context Injection for Drafting & Review**:
   - `blog-post-draft-reviewer` and `promo-generator` query `vsearch` (via direct SQLite BM25 or hybrid search) for relevant background context from your Obsidian vault.
   - Injects recent related ideas, prior series installments, and cross-references directly into prompt contexts with `--vault-context/--no-vault-context`.
-- [ ] **Step 3.2: Persona Memory**:
-  - Enable `persona-counsel` to pull prior council recommendations and dissonance reports automatically from past monthly notes via semantic search.
+- [x] **Step 3.2: Persona Memory**:
+  - Enable `persona-counsel` to pull prior council recommendations and dissonance reports automatically from past monthly notes via vsearch (SQLite BM25) and disk scan fallback with `--memory/--no-memory`.
 - [ ] **Step 3.3: Content Discovery Synergy**:
   - When drafting articles or newsletters, enable querying the `content-discovery` SQLite archive for kept articles tagged with matching topics.
 
