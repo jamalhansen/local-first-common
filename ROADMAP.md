@@ -104,9 +104,9 @@ my-tool/
   - Provide a script/daemon watching `~/Inbound-Photos` using `fswatch` to trigger `make pipeline-photos` upon new file drop.
 
 ### Phase 3: Cross-Tool Local Memory & Context Layer
-- [ ] **Step 3.1: Context Injection for Drafting & Review**:
-  - Allow `blog-post-draft-reviewer` and `promo-generator` to query `vsearch` behind the scenes for relevant background context from your Obsidian vault.
-  - Inject recent related ideas directly into prompt contexts to improve coherence across posts.
+- [x] **Step 3.1: Context Injection for Drafting & Review**:
+  - `blog-post-draft-reviewer` and `promo-generator` query `vsearch` (via direct SQLite BM25 or hybrid search) for relevant background context from your Obsidian vault.
+  - Injects recent related ideas, prior series installments, and cross-references directly into prompt contexts with `--vault-context/--no-vault-context`.
 - [ ] **Step 3.2: Persona Memory**:
   - Enable `persona-counsel` to pull prior council recommendations and dissonance reports automatically from past monthly notes via semantic search.
 - [ ] **Step 3.3: Content Discovery Synergy**:
