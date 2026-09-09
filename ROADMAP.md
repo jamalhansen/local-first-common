@@ -115,13 +115,13 @@ my-tool/
   - `blog-post-draft-reviewer`: Enabled querying the content-discovery SQLite archive for saved research articles matching the draft being reviewed with `--discovery-context/--no-discovery-context`.
 
 ### Phase 4: Local SLM + Cloud Hybrid Tiering
-- [ ] **Step 4.1: Fast Local Tier (3B–8B SLMs)**:
+- [x] **Step 4.1: Fast Local Tier (3B–8B SLMs)**:
   - Configure deterministic classification, frontmatter parsing, tag suggestions, and voice extraction to default to fast local models (e.g., `llama3.2:3b`, `qwen2.5-coder:7b`) via Ollama.
   - Target latency under 1 second with $0 token cost.
-- [ ] **Step 4.2: High-Reasoning Cloud Tier**:
-  - Route creative synthesis, adversarial critique (`pedantic-troll`), and deep multi-perspective persona councils to frontier cloud models (`claude-3-7-sonnet`, `gemini-2.5-pro`).
-- [ ] **Step 4.3: Automatic Local-to-Cloud Fallback**:
-  - Enhance `local_first_common.providers` to detect Ollama connection failures or timeouts and seamlessly fall back to an active cloud provider if configured.
+- [x] **Step 4.2: High-Reasoning Cloud Tier**:
+  - Route creative synthesis, adversarial critique (`pedantic-troll`), and deep multi-perspective persona councils to frontier cloud models (`claude-3-7-sonnet`, `gemini-2.5-pro`) via `tier="reasoning"`.
+- [x] **Step 4.3: Automatic Local-to-Cloud Fallback**:
+  - Enhanced `local_first_common.providers` with `FallbackProvider` and integrated into `resolve_provider` to detect Ollama connection failures or timeouts and seamlessly fall back to an active cloud provider.
 
 ### Phase 5: Modern Native `uv` Workspace Monorepo
 - [ ] **Step 5.1: Workspace Root `pyproject.toml`**:
