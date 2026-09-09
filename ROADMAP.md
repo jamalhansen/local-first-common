@@ -109,8 +109,10 @@ my-tool/
   - Injects recent related ideas, prior series installments, and cross-references directly into prompt contexts with `--vault-context/--no-vault-context`.
 - [x] **Step 3.2: Persona Memory**:
   - Enable `persona-counsel` to pull prior council recommendations and dissonance reports automatically from past monthly notes via vsearch (SQLite BM25) and disk scan fallback with `--memory/--no-memory`.
-- [ ] **Step 3.3: Content Discovery Synergy**:
-  - When drafting articles or newsletters, enable querying the `content-discovery` SQLite archive for kept articles tagged with matching topics.
+- [x] **Step 3.3: Content Discovery Synergy**:
+  - `content-discovery-agent`: Added `search_kept_items` in `store.py` and `discover search-kept` CLI command to search kept items by tag/topic/query.
+  - `newsletter-prep-assistant`: Enabled `--topic` / `--tag` filtering of kept finds from the content-discovery SQLite archive with automatic topic inference from draft blog posts and fallback to recent finds.
+  - `blog-post-draft-reviewer`: Enabled querying the content-discovery SQLite archive for saved research articles matching the draft being reviewed with `--discovery-context/--no-discovery-context`.
 
 ### Phase 4: Local SLM + Cloud Hybrid Tiering
 - [ ] **Step 4.1: Fast Local Tier (3B–8B SLMs)**:
