@@ -244,3 +244,13 @@ def run(
 
 Treat this standards file as an API contract. When helper signatures change in
 `local_first_common`, update examples in this file in the same PR.
+
+---
+
+## Model Tiering & Cloud Fallback
+
+To balance local privacy, $0 token costs, and high-performance reasoning:
+
+1. **Fast Local Tier (3B–8B SLMs)**: Routine tasks (deterministic classification, frontmatter parsing, tag suggestions, voice extraction) default to fast local models (`llama3.2:3b`, `qwen2.5-coder:7b`) via Ollama.
+2. **High-Reasoning Cloud Tier**: Deep multi-perspective synthesis, adversarial critique (`pedantic-troll`), and persona councils route to frontier cloud models (`claude-3-7-sonnet`, `gemini-2.5-pro`) when requested or configured with `tier="reasoning"`.
+3. **Automatic Local-to-Cloud Fallback**: `resolve_provider` wraps Ollama in `FallbackProvider` by default. If the local Ollama daemon is offline or times out, calls fail over to an active cloud provider (detected via `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc. or configured via `FALLBACK_PROVIDER`).

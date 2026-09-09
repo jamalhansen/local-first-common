@@ -129,8 +129,12 @@ def resolve_provider(
     debug: bool = False,
     verbose: bool = False,
     no_llm: bool = False,
+    fallback: bool = True,
+    fallback_provider: Optional[str] = None,
+    fallback_model: Optional[str] = None,
 ):
-    """Instantiate the named provider, with validation and helpful error on unknown name."""
+    """Instantiate the named provider, with validation, helpful error on unknown name,
+    and automatic local-to-cloud failover when Ollama is unavailable."""
     if providers is None:
         from .providers import PROVIDERS
 
@@ -155,5 +159,29 @@ def resolve_provider(
         )
 
     cls = providers[provider_name]
-    return cls(model=model)
+    try:
+        primary = cls(model=model, debug=debug)
+    except TypeError:
+        primary = cls(model=model)
+
+    if fallback and provider_name in ("ollama", "local"):
+        from .tiering import resolve_fallback_target
+        from .providers.fallback import FallbackProvider
+
+        target = resolve_fallback_target(fallback_provider, fallback_model)
+        if target:
+            fb_prov_name, fb_model_name = target
+            if fb_prov_name in providers and fb_prov_name not in ("ollama", "local"):
+                try:
+                    fb_cls = providers[fb_prov_name]
+                    try:
+                        fb_instance = fb_cls(model=fb_model_name, debug=debug)
+                    except TypeError:
+                        fb_instance = fb_cls(model=fb_model_name)
+                    return FallbackProvider(primary, fb_instance, debug=debug)
+                except Exception:
+                    pass
+
+    return primary
+
 

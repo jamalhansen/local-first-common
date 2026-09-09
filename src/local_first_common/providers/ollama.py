@@ -80,9 +80,9 @@ class OllamaProvider(BaseProvider):
                         return name
             return names[0]  # Fallback to first available
 
-        # 2. Fast / Encoding Logic
-        if intent in ("fast", "encoding"):
-            for pref in ["phi4-mini", "llama3.2:1b", "llama3.2:3b", "phi3"]:
+        # 2. Fast / Classification / Tagging / Extraction / Encoding Logic
+        if intent in ("fast", "encoding", "classification", "tagging", "extraction"):
+            for pref in ["llama3.2:3b", "qwen2.5-coder:7b", "phi4-mini", "llama3.2:1b", "phi3"]:
                 for name in names:
                     if pref in name.lower():
                         return name

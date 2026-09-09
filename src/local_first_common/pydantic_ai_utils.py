@@ -4,6 +4,7 @@ from typing import Any
 
 PROVIDER_DEFAULTS: dict[str, str] = {
     "ollama": "phi4-mini",
+    "local": "phi4-mini",
     "anthropic": "claude-haiku-4-5-20251001",
     "groq": "llama-3.3-70b-versatile",
     "deepseek": "deepseek-chat",
@@ -14,15 +15,24 @@ PROVIDER_DEFAULTS: dict[str, str] = {
 VALID_PROVIDERS = list(PROVIDER_DEFAULTS.keys())
 
 
-def build_model(provider: str, model_name: str | None) -> Any:
-    """Return a pydantic-ai Model object for the given provider and optional model name."""
+def build_model(
+    provider: str,
+    model_name: str | None = None,
+    tier: str | None = None,
+) -> Any:
+    """Return a pydantic-ai Model object for the given provider, optional model name, or tier."""
     if provider not in PROVIDER_DEFAULTS:
         valid = ", ".join(VALID_PROVIDERS)
         raise ValueError(f"Unknown provider '{provider}'. Valid options: {valid}")
 
-    model = model_name or PROVIDER_DEFAULTS[provider]
+    if not model_name and tier:
+        from .tiering import get_tier_model
 
-    if provider == "ollama":
+        model = get_tier_model(tier, provider)
+    else:
+        model = model_name or PROVIDER_DEFAULTS[provider]
+
+    if provider in ("ollama", "local"):
         from pydantic_ai.models.openai import OpenAIChatModel
         from pydantic_ai.providers.openai import OpenAIProvider
 
