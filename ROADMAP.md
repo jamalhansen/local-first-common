@@ -123,9 +123,12 @@ my-tool/
 - [x] **Step 4.3: Automatic Local-to-Cloud Fallback**:
   - Enhanced `local_first_common.providers` with `FallbackProvider` and integrated into `resolve_provider` to detect Ollama connection failures or timeouts and seamlessly fall back to an active cloud provider.
 
-### Phase 5: Modern Native `uv` Workspace Monorepo
-- [ ] **Step 5.1: Workspace Root `pyproject.toml`**:
-  - Configure root `pyproject.toml` with `[tool.uv.workspace]` listing all 27 tool members.
-  - Allow `uv` to resolve `local-first-common` locally without running regex toggle scripts.
-- [ ] **Step 5.2: Deprecate `toggle_source.py`**:
-  - Eliminate the need to rewrite `pyproject.toml` files between local development and remote GitHub publishing.
+### Phase 5: Multi-Repo Portability Architecture Formally Retained
+- [x] **Step 5.1: Workspace vs Multi-Repo Portability Evaluation**:
+  - Evaluated native `uv [tool.uv.workspace]` monorepo structure against the workspace's 27 independent Git repositories.
+  - Native `uv` workspace requires `workspace = true` in member `tool.uv.sources`, which inherently breaks standalone cloning, portability, and independent remote distribution on other machines.
+  - Decision: Retain the multi-repo architecture to preserve standalone GitHub/Bitbucket repository portability.
+- [x] **Step 5.2: Preserved `toggle_source.py` Workflow**:
+  - Maintained `make use-local` (for fast local development across packages) and `make use-github` (for clean, portable Git commits and remote publishing).
+  - Validated with pre-push portability hooks (`pre_push_check.py`) and automated `make verify` preflight across all 27 repositories.
+
