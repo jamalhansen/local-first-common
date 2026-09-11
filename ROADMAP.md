@@ -93,15 +93,20 @@ my-tool/
   - `series-cross-link-suggester`: Split 680-line `logic.py` into `cli.py`, `scanner.py`, and `injector.py`.
   - `pebble`: Modularized into `cli.py`, `storage.py`, `inbox.py`, and `agents.py`.
 
-### Phase 2: Autonomous Background Workflows (`launchd` / `cron`)
-- [ ] **Step 2.1: Automated Discovery Intake**:
-  - Create a lightweight `launchd` plist / cron recipe to run `discover run` periodically (e.g. every 2 hours).
-  - Add optional automatic notification (via `osascript` or terminal-notifier) when new candidates score $\ge 0.85$.
-- [ ] **Step 2.2: Sunday Night Weekly Review Batch**:
-  - Automate `make pipeline-weekly` to execute every Sunday at 8:00 PM.
-  - Automatically stage the draft weekly review note in Obsidian for Monday morning review.
-- [ ] **Step 2.3: Inbound Photo Intake Watcher**:
-  - Provide a script/daemon watching `~/Inbound-Photos` using `fswatch` to trigger `make pipeline-photos` upon new file drop.
+### Phase 2: Autonomous Background Workflows (`launchd`)
+Completed 2026-09-10 on the Mac Mini, with two deliberate deviations from how
+this phase was originally specified -- both because real infrastructure
+already existed that this plan didn't know about yet. Full detail, including
+why each deviation was made, in `~/vaults/Contexta/ops/tool-state-local-first-background-jobs.md`.
+
+- [x] **Step 2.1: Automated Discovery Intake**:
+  - Not a new plist. `com.jamalhansen.discovery-loop` already ran `discover run` + `discover reconcile` daily at 7am, deliberately tuned to route ~20 items/day -- a second job at every-2-hours would have doubled up on the same `store.db` and blown that tuning. Kept the existing schedule, added the notification: `discovery-loop` gained `--notify-threshold` (default 0.85, matches this step's ask exactly) and fires one `osascript` notification per run naming the top-scoring pending candidate.
+- [x] **Step 2.2: Sunday Night Weekly Review Batch**:
+  - Built as specified: `com.localfirst.weekly-review` runs `make pipeline-weekly` every Sunday 8pm. Known gap, not introduced by this: `weekly-review-generator`'s kept-content section queries a `status='kept'` field that `readwise_routing` bypasses (dead since 2026-08-23, decided 2026-09-06 not worth fixing standalone) -- it'll read zero every week now that this runs unattended.
+- [x] **Step 2.3: Inbound Photo Intake Watcher**:
+  - Uses launchd's native `WatchPaths` on `~/Inbound-Photos`, not `fswatch` (not installed, and WatchPaths needs no extra dependency). Triggers `photo-watcher-run`, which moves dropped images into a timestamped batch subfolder before calling `photo-pipeline` (the more complete, already-existing hand-built script -- correct stage order, writes a catalog -- not the `pipeline-photos` Makefile target this step originally named) on that subfolder. The move-first step matters: `photo-pipeline` overwrites images in place, and running it directly on the watched folder would re-trigger the watcher on its own writes.
+- [x] **Step 2.4: Vault Health Survey** (not in the original plan -- added because the tool didn't exist yet when Phase 2 was scoped):
+  - `com.localfirst.tension-survey` runs `tension-dashboard maps` and `tension-dashboard tensions` against the Contexta vault weekly, appending a snapshot to `tension-triage-dashboard`'s trend database so reciprocity-gap and fragmentation trends are visible across runs, not just as one-off CLI checks.
 
 ### Phase 3: Cross-Tool Local Memory & Context Layer
 - [x] **Step 3.1: Context Injection for Drafting & Review**:

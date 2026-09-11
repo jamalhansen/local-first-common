@@ -59,6 +59,17 @@ class TestInitConfigOption:
         assert result.exit_code == 0, result.output
         assert called is False
 
+    def test_negated_flag_is_a_real_option_not_just_absent(self):
+        """A missing leading `default` on typer.Option() doesn't always crash --
+        it can just silently drop Typer's auto-generated --no-x form instead,
+        which is exactly what happened here 2026-09-06 despite this file's
+        other three tests all passing throughout. --no-init-config must exist
+        and must not itself be mistaken for the positional default again."""
+        result = runner.invoke(_make_app(), ["--no-init-config"])
+        assert result.exit_code == 0, result.output
+        assert "no such option" not in result.output.lower()
+        assert "ran normally" in result.output
+
 
 class TestJsonOption:
     def test_json_option_in_app(self):
