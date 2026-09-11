@@ -2,6 +2,12 @@
 
 REPOS = $(shell ls -d */ | grep -vE 'local-ai-tool-template/|tests/')
 VERIFY_LOG ?= /tmp/make-verify-latest.log
+# Pinned to match local-first-common/install_hooks.py's RUFF_PIN -- without a
+# pin, ruff's own default rule set (there is no [tool.ruff] anywhere in this
+# workspace) depends on whichever version happens to be installed, which is
+# exactly how one machine passed clean while another found 84+ errors on the
+# same repo (2026-09-10).
+RUFF_PIN = ruff==0.16.7
 
 .PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pipeline-publish pipeline-photos pipeline-weekly pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
 
@@ -468,7 +474,7 @@ check:
 	for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Checking $$repo ---"; \
-			if ! (cd $$repo && uv run ruff check --extend-select SIM115 .); then \
+			if ! (cd $$repo && uv run --with $(RUFF_PIN) ruff check --extend-select SIM115 .); then \
 				FAILED=$$((FAILED + 1)); \
 			fi; \
 		fi \
@@ -531,7 +537,7 @@ fix:
 	@for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Fixing $$repo ---"; \
-			(cd $$repo && uv run ruff check --extend-select SIM115 --fix .); \
+			(cd $$repo && uv run --with $(RUFF_PIN) ruff check --extend-select SIM115 --fix .); \
 		fi \
 	done
 
@@ -622,6 +628,7 @@ help-tools:
 
 check-hooks:
 	@HOOK_VERSION=$$(grep "HOOK_VERSION =" local-first-common/install_hooks.py | cut -d'"' -f2 | head -1); \
+	FAIL=0; \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/.git" ]; then \
 			echo "--- Checking hooks: $$repo ---"; \
@@ -631,21 +638,27 @@ check-hooks:
 						echo "  ✓ $$hook is up to date (v$$HOOK_VERSION)"; \
 					else \
 						echo "  ✗ $$hook is OUTDATED or modified"; \
+						FAIL=$$((FAIL + 1)); \
 					fi; \
 				else \
 					echo "  ✗ $$hook is MISSING"; \
+					FAIL=$$((FAIL + 1)); \
 				fi; \
 			done; \
 			echo ""; \
 		fi \
-	done
+	done; \
+	if [ $$FAIL -gt 0 ]; then \
+		echo "✗ $$FAIL hook(s) missing or outdated. Run: python3 local-first-common/install_hooks.py --all"; \
+		exit 1; \
+	fi
 
 pre-commit:
 	@for repo in $(REPOS); do \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Pre-commit: $$repo ---"; \
 			(cd $$repo && \
-			 uv run ruff check --extend-select SIM115 . && \
+			 uv run --with $(RUFF_PIN) ruff check --extend-select SIM115 . && \
 			 if [ -d "tests" ]; then uv run pytest -q; fi && \
 			 python3 ../local-first-common/scripts/pre_push_check.py . --all-files); \
 		fi \

@@ -20,7 +20,14 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.5"
+HOOK_VERSION = "1.6"
+
+# Pinned so `ruff`'s own default rule selection can't silently change based on
+# whichever version happens to be installed/on PATH on a given machine -- found
+# 2026-09-10 when the same repo passed clean on one machine and failed with 84
+# errors on another, purely because of a ruff version difference (no config
+# file existed anywhere; ruff's own default rule set changed between versions).
+RUFF_PIN = "ruff==0.16.7"
 
 PRE_COMMIT_HOOK = f"""\
 #!/bin/sh
@@ -35,7 +42,7 @@ SCANNER="$HOME/projects/local-first/local-first-common/scripts/pre_commit_check.
 cd "$REPO_ROOT" || exit 1
 
 echo "Running ruff check..."
-uv run ruff check --extend-select SIM115 .
+uv run --with {RUFF_PIN} ruff check --extend-select SIM115 .
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
     echo ""
