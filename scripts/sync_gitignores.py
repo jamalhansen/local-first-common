@@ -1,11 +1,17 @@
 from pathlib import Path
 
-# Master list of ignore patterns to ensure are present in all workspace repos
+# Master list of ignore patterns to ensure are present in all workspace repos.
+# Both ".venv" and ".venv/" are listed deliberately, not a duplicate: py-tooling's
+# pre-commit hook (~/projects/py-tooling/scripts/pre_commit_check.py) checks for
+# the bare, no-trailing-slash form as an exact line match, so ".venv/" alone
+# satisfies gitignore semantics but not that check (found 2026-09-11 when a repo
+# with only ".venv/" still failed "Gitignore coverage: .gitignore missing entry: .venv").
 MASTER_IGNORES = {
     ".DS_Store",
     ".pytest_cache/",
     ".ruff_cache/",
     ".coverage",
+    ".venv",
     ".venv/",
     "__pycache__",
     ".env",
