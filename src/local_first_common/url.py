@@ -39,6 +39,9 @@ def normalize_url(url: str) -> str:
     2. Lowercase scheme and netloc.
     3. Strip trailing slashes from path.
     4. Force https for known sites that use both interchangeably (e.g. news.ycombinator.com).
+    5. Collapse arXiv's DOI form (doi.org/10.48550/arXiv.X) to its abs-page form
+       (arxiv.org/abs/X) -- same paper, two URLs, both seen in the wild for the same
+       capture within a day of each other.
     """
     url = clean_url(url)
     try:
@@ -52,6 +55,11 @@ def normalize_url(url: str) -> str:
         # Consolidate http/https for specific domains prone to mixed usage
         if netloc in ("news.ycombinator.com", "ycombinator.com"):
             scheme = "https"
+
+        if netloc == "doi.org" and path.lower().startswith("/10.48550/arxiv."):
+            arxiv_id = path[len("/10.48550/arxiv."):]
+            netloc = "arxiv.org"
+            path = f"/abs/{arxiv_id}"
 
         return parsed._replace(scheme=scheme, netloc=netloc, path=path).geturl()
     except Exception:  # noqa: BLE001 - malformed URL from an untrusted source; return unchanged rather than crash, per this function's own contract

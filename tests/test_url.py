@@ -74,3 +74,9 @@ class TestNormalizeUrl:
         # item becomes lowercased if it was part of netloc, but it's part of path.
         # normalize_url only lowercases scheme and netloc.
         assert normalize_url(url) == "https://news.ycombinator.com/ITEM?id=456"
+
+    def test_collapses_arxiv_doi_to_abs_form(self):
+        abs_url = "https://arxiv.org/abs/2609.04611"
+        doi_url = "https://doi.org/10.48550/arXiv.2609.04611"
+        assert normalize_url(doi_url) == normalize_url(abs_url)
+        assert normalize_url(doi_url) == "https://arxiv.org/abs/2609.04611"
