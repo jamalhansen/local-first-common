@@ -1,18 +1,19 @@
 import json
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import BaseModel
 
+from local_first_common.cli import resolve_provider
 from local_first_common.providers import PROVIDERS
-from local_first_common.providers.base import BaseProvider
-from local_first_common.providers.ollama import OllamaProvider
 from local_first_common.providers.anthropic import AnthropicProvider
-from local_first_common.providers.groq import GroqProvider
+from local_first_common.providers.base import BaseProvider
 from local_first_common.providers.deepseek import DeepSeekProvider
 from local_first_common.providers.errors import ModelNotFoundError
 from local_first_common.providers.gemini import GeminiProvider
-from local_first_common.cli import resolve_provider
+from local_first_common.providers.groq import GroqProvider
+from local_first_common.providers.ollama import OllamaProvider
 
 
 class SampleOutput(BaseModel):
@@ -58,7 +59,7 @@ class TestBaseProvider:
     def test_default_model_used_when_no_model_given(self):
         class Concrete(BaseProvider):
             default_model = "my-model"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def _complete(self, system, user, response_model=None, images=None):
@@ -73,7 +74,7 @@ class TestBaseProvider:
     def test_custom_model_overrides_default(self):
         class Concrete(BaseProvider):
             default_model = "my-model"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def _complete(self, system, user, response_model=None, images=None):
@@ -88,7 +89,7 @@ class TestBaseProvider:
     def test_get_example_json_produces_valid_json(self):
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def _complete(self, system, user, response_model=None, images=None):
@@ -108,7 +109,7 @@ class TestBaseProvider:
     def test_parse_json_response_clean_json(self):
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def _complete(self, system, user, response_model=None, images=None):
@@ -124,7 +125,7 @@ class TestBaseProvider:
     def test_parse_json_response_extracts_from_prose(self):
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def _complete(self, system, user, response_model=None, images=None):
@@ -148,7 +149,7 @@ class TestBaseProviderRateLimit:
 
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def _complete(self, system, user, response_model=None, images=None):
@@ -168,7 +169,7 @@ class TestBaseProviderRateLimit:
     def test_is_rate_limit_error_detects_429(self):
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = ""
 
             def _complete(self, *a, **kw):
@@ -199,18 +200,16 @@ class TestBaseProviderRateLimit:
             [rate_err, rate_err, rate_err, rate_err]
         )
 
-        with patch("time.sleep"):
-            with pytest.raises(RuntimeError, match="429"):
-                provider.complete("sys", "usr", rate_limit_retries=2)
+        with patch("time.sleep"), pytest.raises(RuntimeError, match="429"):
+            provider.complete("sys", "usr", rate_limit_retries=2)
 
         assert call_count["n"] == 3  # initial + 2 retries
 
     def test_does_not_sleep_on_non_rate_limit_error(self):
         provider, _ = self._make_provider([RuntimeError("500 Server Error")])
 
-        with patch("time.sleep") as mock_sleep:
-            with pytest.raises(RuntimeError, match="500"):
-                provider.complete("sys", "usr", rate_limit_retries=3)
+        with patch("time.sleep") as mock_sleep, pytest.raises(RuntimeError, match="500"):
+            provider.complete("sys", "usr", rate_limit_retries=3)
 
         mock_sleep.assert_not_called()
 
@@ -229,9 +228,8 @@ class TestBaseProviderRateLimit:
         rate_err = RuntimeError("429 Too Many Requests")
         provider, call_count = self._make_provider([rate_err] * 10)
 
-        with patch("time.sleep"):
-            with pytest.raises(RuntimeError, match="429"):
-                provider.complete("sys", "usr", max_retries=2, rate_limit_retries=1)
+        with patch("time.sleep"), pytest.raises(RuntimeError, match="429"):
+            provider.complete("sys", "usr", max_retries=2, rate_limit_retries=1)
 
         # rate_limit_retries=1 means 2 calls per max_retries attempt,
         # but 429 should NOT trigger the JSON-retry outer loop — just 2 calls total
@@ -240,7 +238,7 @@ class TestBaseProviderRateLimit:
     def test_policy_helpers_for_retry_decisions(self):
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = ""
 
             def _complete(self, *a, **kw):
@@ -265,7 +263,7 @@ class TestBaseProviderRateLimit:
     def test_build_retry_prompt_includes_error_context(self):
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = ""
 
             def _complete(self, *a, **kw):
@@ -287,7 +285,7 @@ class TestBaseProviderOutputModes:
 
         class Concrete(BaseProvider):
             default_model = "x"
-            known_models = []
+            known_models: ClassVar[list] = []
             models_url = "http://example.com"
 
             def __init__(self, **inner_kwargs):

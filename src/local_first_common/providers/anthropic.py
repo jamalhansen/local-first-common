@@ -1,6 +1,6 @@
-import os
 import logging
-from typing import Any, Dict, List, Optional, Union
+import os
+from typing import Any, ClassVar
 
 from .base import BaseProvider
 
@@ -27,7 +27,7 @@ def _extract_text(message: Any) -> str:
 
 class AnthropicProvider(BaseProvider):
     default_model = "claude-haiku-4-5-20251001"
-    known_models: List[str] = [
+    known_models: ClassVar[list[str]] = [
         "claude-opus-5",
         "claude-sonnet-5",
         "claude-haiku-4-5-20251001",
@@ -36,9 +36,9 @@ class AnthropicProvider(BaseProvider):
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         debug: bool = False,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -56,7 +56,7 @@ class AnthropicProvider(BaseProvider):
         return actual_system
 
     def _build_messages(
-        self, user: str, images: Optional[list[str]] = None
+        self, user: str, images: list[str] | None = None
     ) -> list[dict]:
         content: list[dict] = [{"type": "text", "text": user}]
         if images:
@@ -77,9 +77,9 @@ class AnthropicProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         if _Anthropic is None:
             raise RuntimeError(
                 "anthropic package is required for AnthropicProvider. Install it with: uv add anthropic"
@@ -102,7 +102,7 @@ class AnthropicProvider(BaseProvider):
             self.input_tokens += message.usage.input_tokens
             self.output_tokens += message.usage.output_tokens
             content = _extract_text(message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "model" in err.lower() and (
                 "not found" in err.lower() or "invalid" in err.lower()
@@ -143,9 +143,9 @@ class AnthropicProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         if _AsyncAnthropic is None:
             raise RuntimeError(
                 "anthropic package is required for AnthropicProvider. Install it with: uv add anthropic"
@@ -168,7 +168,7 @@ class AnthropicProvider(BaseProvider):
             self.input_tokens += message.usage.input_tokens
             self.output_tokens += message.usage.output_tokens
             content = _extract_text(message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "model" in err.lower() and (
                 "not found" in err.lower() or "invalid" in err.lower()

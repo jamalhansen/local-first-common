@@ -1,11 +1,11 @@
 """Tests for local_first_common.scoring — BaseScorer and ScoredItem."""
 import json
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from local_first_common.scoring import BaseScorer, ScoredItem
 from local_first_common.testing import MockProvider
-
 
 # ---------------------------------------------------------------------------
 # Concrete subclass for testing

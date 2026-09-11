@@ -25,6 +25,7 @@ Typical usage::
 import logging
 import re
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlparse
 
 from local_first_common import html
@@ -108,7 +109,7 @@ def _try_render(url: str, renderer) -> str:
         renderer = fetch_rendered_text
     try:
         return (renderer(url) or "").strip()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - rendering is a best-effort fallback, never a hard requirement
         logger.info("Rendered fetch failed for %s: %s: %s", url, type(e).__name__, e)
         return ""
 
@@ -120,7 +121,7 @@ def fetch_article_metadata(
     source_url: str | None = None,
     source_platform: str | None = None,
     search_term: str | None = None,
-    session: any = None,
+    session: Any | None = None,
     render_domains: frozenset[str] = frozenset(),
     renderer=None,
 ) -> FeedItem | None:
@@ -165,7 +166,7 @@ def fetch_article_metadata(
 
         try:
             metadata = html.extract_metadata(fetch.html)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - untrusted third-party HTML, any parse failure should degrade to None
             logger.warning("Failed to parse metadata for %s: %s", url, e)
             if session and hasattr(session, "mark_failed"):
                 session.mark_failed(url)
@@ -175,8 +176,7 @@ def fetch_article_metadata(
 
         if not title and render_domains:
             host = netloc.lower().split(":")[0]
-            if host.startswith("www."):
-                host = host[4:]
+            host = host.removeprefix("www.")
             if host in render_domains:
                 rendered = _try_render(url, renderer)
                 if rendered:

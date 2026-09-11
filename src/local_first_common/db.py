@@ -1,8 +1,9 @@
 import os
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, Optional
+
 
 def _resolve_quality_db_path() -> Path:
     """Resolve the content quality database path with fallback logic."""
@@ -22,9 +23,9 @@ def _resolve_quality_db_path() -> Path:
 def resolve_sync_path(
     tool_name: str, 
     db_filename: str, 
-    env_var: Optional[str] = None,
-    local_migration_path: Optional[str | Path] = None,
-    custom_path: Optional[str | Path] = None
+    env_var: str | None = None,
+    local_migration_path: str | Path | None = None,
+    custom_path: str | Path | None = None
 ) -> Path:
     """Resolve a database path in the sync folder, with optional migration from a local path.
     
@@ -56,7 +57,7 @@ def resolve_sync_path(
                 local_path.unlink() # then delete
                 # We don't use print here to avoid noise in non-CLI contexts, 
                 # but we could log it if needed.
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort migration; any failure (permissions, disk space) should fall back, not crash
                 # If migration fails, fall back to local path for this run
                 return local_path
 
@@ -71,7 +72,7 @@ CONTENT_QUALITY_DB_PATH = _resolve_quality_db_path()
 
 
 @contextmanager
-def get_db_cursor(db_path: str | Path) -> Generator[Optional[sqlite3.Cursor], None, None]:
+def get_db_cursor(db_path: str | Path) -> Generator[sqlite3.Cursor | None, None, None]:
     """Context manager for a SQLite database cursor.
     
     Handles connection, sets Row factory, and closes on exit.
@@ -127,8 +128,8 @@ def mark_status(
     conn = sqlite3.connect(str(path))
     try:
         if timestamp_col:
-            from datetime import datetime
-            now = datetime.now().isoformat()
+            from datetime import UTC, datetime
+            now = datetime.now(UTC).isoformat()
             conn.execute(
                 f"UPDATE {table} SET {status_col} = ?, {timestamp_col} = ? WHERE {url_col} = ?",
                 (status, now, url),

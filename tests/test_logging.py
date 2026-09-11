@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import duckdb
 
@@ -86,7 +86,7 @@ class TestOperationalLogging:
 
         conn = duckdb.connect(str(db_path))
         try:
-            old_ts = (datetime.now(timezone.utc) - timedelta(days=120)).replace(
+            old_ts = (datetime.now(UTC) - timedelta(days=120)).replace(
                 tzinfo=None
             )
             conn.execute(

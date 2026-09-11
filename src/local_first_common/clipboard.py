@@ -10,7 +10,7 @@ def get_clipboard() -> str:
     Returns an empty string if the clipboard is empty or inaccessible.
     """
     try:
-        result = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=5, check=False)
         return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):
         import pyperclip

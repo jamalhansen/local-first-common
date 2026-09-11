@@ -2,4 +2,4 @@ from .base import SocialReader
 from .bluesky import BlueskyReader
 from .mastodon import MastodonReader
 
-__all__ = ["SocialReader", "BlueskyReader", "MastodonReader"]
+__all__ = ["BlueskyReader", "MastodonReader", "SocialReader"]

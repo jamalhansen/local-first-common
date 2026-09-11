@@ -1,7 +1,7 @@
 """Tests for local_first_common.tracking."""
 
-import time
 import threading
+import time
 import warnings
 from pathlib import Path
 from unittest.mock import patch
@@ -19,7 +19,6 @@ from local_first_common.tracking import (
     timed_run,
     tracked_fetch,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -306,18 +305,16 @@ class TestTimedRun:
 
     def test_logs_on_exception(self, tmp_path):
         db = tmp_path / "test.duckdb"
-        with pytest.raises(ValueError):
-            with timed_run("failing-tool", "model", db_path=db):
-                raise ValueError("boom")
+        with pytest.raises(ValueError), timed_run("failing-tool", "model", db_path=db):
+            raise ValueError("boom")
         row = _last_row(db)
         assert row["success"] is False
         assert "boom" in row["error_message"]
 
     def test_does_not_suppress_exceptions(self, tmp_path):
         db = tmp_path / "test.duckdb"
-        with pytest.raises(RuntimeError, match="expected"):
-            with timed_run("tool", "model", db_path=db):
-                raise RuntimeError("expected")
+        with pytest.raises(RuntimeError, match="expected"), timed_run("tool", "model", db_path=db):
+            raise RuntimeError("expected")
 
     def test_duration_is_positive(self, tmp_path):
         db = tmp_path / "test.duckdb"
@@ -378,15 +375,14 @@ class TestTrackedFetch:
 
         with patch(
             "local_first_common.http.fetch_url", return_value="<html>hello</html>"
-        ):
-            with tracked_fetch(
-                tool,
-                "https://example.com/article",
-                source_url="https://bsky.app/post/123",
-                source_platform="bluesky",
-                db_path=db,
-            ) as fetch:
-                fetch.title = "Example Article"
+        ), tracked_fetch(
+            tool,
+            "https://example.com/article",
+            source_url="https://bsky.app/post/123",
+            source_platform="bluesky",
+            db_path=db,
+        ) as fetch:
+            fetch.title = "Example Article"
 
         assert fetch.html == "<html>hello</html>"
         assert fetch.success is True
@@ -411,14 +407,13 @@ class TestTrackedFetch:
         with patch(
             "local_first_common.http.fetch_url",
             side_effect=FetchError("403 Forbidden", status_code=403),
-        ):
-            with tracked_fetch(
-                tool,
-                "https://example.com/blocked",
-                source_platform="mastodon",
-                db_path=db,
-            ) as fetch:
-                pass  # fetch.html is None
+        ), tracked_fetch(
+            tool,
+            "https://example.com/blocked",
+            source_platform="mastodon",
+            db_path=db,
+        ) as fetch:
+            pass  # fetch.html is None
 
         assert fetch.html is None
         assert fetch.success is False
@@ -438,9 +433,8 @@ class TestTrackedFetch:
         with patch(
             "local_first_common.http.fetch_url",
             side_effect=FetchError("Read timed out", status_code=None),
-        ):
-            with tracked_fetch(tool, "https://slow.example.com/", db_path=db):
-                pass
+        ), tracked_fetch(tool, "https://slow.example.com/", db_path=db):
+            pass
 
         row = _last_row(db, table="fetch_log")
         assert row["success"] is False
@@ -453,9 +447,11 @@ class TestTrackedFetch:
         register_tool("seed", db_path=db)
         tool = Tool(name="unregistered", id=None)
 
-        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
-            with tracked_fetch(tool, "https://example.com/", db_path=db):
-                pass
+        with (
+            patch("local_first_common.http.fetch_url", return_value="<html/>"),
+            tracked_fetch(tool, "https://example.com/", db_path=db),
+        ):
+            pass
 
         # Only the seed tool row; no fetch_log rows
         assert _row_count(db, table="fetch_log") == 0
@@ -464,18 +460,22 @@ class TestTrackedFetch:
         db = tmp_path / "test.duckdb"
         tool = register_tool("test-tool", db_path=db)
 
-        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
-            with pytest.raises(ValueError, match="caller error"):
-                with tracked_fetch(tool, "https://example.com/", db_path=db):
-                    raise ValueError("caller error")
+        with (
+            patch("local_first_common.http.fetch_url", return_value="<html/>"),
+            pytest.raises(ValueError, match="caller error"),
+            tracked_fetch(tool, "https://example.com/", db_path=db),
+        ):
+            raise ValueError("caller error")
 
     def test_duration_ms_recorded(self, tmp_path):
         db = tmp_path / "test.duckdb"
         tool = register_tool("test-tool", db_path=db)
 
-        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
-            with tracked_fetch(tool, "https://example.com/", db_path=db):
-                pass
+        with (
+            patch("local_first_common.http.fetch_url", return_value="<html/>"),
+            tracked_fetch(tool, "https://example.com/", db_path=db),
+        ):
+            pass
 
         row = _last_row(db, table="fetch_log")
         assert row["duration_ms"] >= 0
@@ -484,15 +484,17 @@ class TestTrackedFetch:
         db = tmp_path / "test.duckdb"
         tool = register_tool("test-tool", db_path=db)
 
-        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
-            with tracked_fetch(
+        with (
+            patch("local_first_common.http.fetch_url", return_value="<html/>"),
+            tracked_fetch(
                 tool,
                 "https://example.com/",
                 source_url="https://mastodon.social/@user/post/999",
                 source_platform="mastodon",
                 db_path=db,
-            ):
-                pass
+            ),
+        ):
+            pass
 
         row = _last_row(db, table="fetch_log")
         assert row["source_url"] == "https://mastodon.social/@user/post/999"
@@ -506,9 +508,11 @@ class TestTrackedFetch:
         tool = register_tool("cross-tool", db_path=db1)
         assert tool.id is not None
 
-        with patch("local_first_common.http.fetch_url", return_value="<html/>"):
-            with tracked_fetch(tool, "https://example.com/target", db_path=db2):
-                pass
+        with (
+            patch("local_first_common.http.fetch_url", return_value="<html/>"),
+            tracked_fetch(tool, "https://example.com/target", db_path=db2),
+        ):
+            pass
 
         # Target DB db2 should have the fetch log entry without foreign key error
         row = _last_row(db2, table="fetch_log")

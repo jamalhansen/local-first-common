@@ -4,9 +4,9 @@ import json
 import logging
 import os
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -96,7 +96,7 @@ def _safe_json_dump(payload: dict[str, Any]) -> str | None:
         return None
     try:
         return json.dumps(payload, default=str)
-    except Exception:
+    except Exception:  # noqa: BLE001 - "safe" dump by design; an unserializable payload should degrade to None, not crash logging itself
         return None
 
 
@@ -126,7 +126,7 @@ class OperationalLogHandler(logging.Handler):
         try:
             conn.execute(_CREATE_OPERATIONAL_LOG_SEQUENCE)
             conn.execute(_CREATE_OPERATIONAL_LOG_TABLE)
-            cutoff = datetime.now(timezone.utc) - timedelta(days=self.retention_days)
+            cutoff = datetime.now(UTC) - timedelta(days=self.retention_days)
             conn.execute(_DELETE_OLD_OPERATIONAL_LOG, [cutoff.replace(tzinfo=None)])
         finally:
             conn.close()
@@ -169,7 +169,7 @@ class OperationalLogHandler(logging.Handler):
         conn = self._connect()
         try:
             conn.execute(_INSERT_OPERATIONAL_LOG, payload)
-        except Exception:
+        except Exception:  # noqa: BLE001 - standard logging.Handler convention: emit() must never raise, hand off to handleError
             self.handleError(record)
         finally:
             conn.close()
@@ -181,7 +181,7 @@ def purge_old_logs(
 ) -> int:
     """Purge operational_log rows older than retention_days."""
     path = resolve_log_db_path(db_path)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, retention_days))
+    cutoff = datetime.now(UTC) - timedelta(days=max(1, retention_days))
 
     import duckdb
 
@@ -200,7 +200,7 @@ def purge_old_logs(
 def setup_logging(
     level: int = logging.INFO,
     show_path: bool = False,
-    console: Optional[Console] = None,
+    console: Console | None = None,
     tool_name: str | None = None,
     persist_warnings: bool = True,
     retention_days: int | None = None,
@@ -241,7 +241,7 @@ def setup_logging(
                 retention_days=resolved_retention_days,
             )
             logging.getLogger().addHandler(handler)
-        except Exception:
+        except Exception:  # noqa: BLE001 - persistence is optional; any setup failure (e.g. DuckDB unavailable) should degrade, not crash the calling tool
             logging.getLogger(__name__).warning(
                 "Persistent warning/error logging is unavailable.",
                 extra={"tool_name": tool_name},

@@ -1,11 +1,13 @@
 """Typer CLI helpers for consistent provider/model/flag patterns across tools."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import typer
 
 from .logging import setup_logging
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(name="local-first", help="Local-first AI tools management.")
 
@@ -13,7 +15,7 @@ app = typer.Typer(name="local-first", help="Local-first AI tools management.")
 @app.callback()
 def main() -> None:
     """Entry callback so `local-first --help` is always valid."""
-    return None
+    return
 
 
 def provider_option(providers: dict | None = None) -> Any:
@@ -125,13 +127,13 @@ def resolve_dry_run(dry_run: bool, no_llm: bool) -> bool:
 def resolve_provider(
     providers: dict | None = None,
     provider_name: str = "ollama",
-    model: Optional[str] = None,
+    model: str | None = None,
     debug: bool = False,
     verbose: bool = False,
     no_llm: bool = False,
     fallback: bool = True,
-    fallback_provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    fallback_provider: str | None = None,
+    fallback_model: str | None = None,
 ):
     """Instantiate the named provider, with validation, helpful error on unknown name,
     and automatic local-to-cloud failover when Ollama is unavailable."""
@@ -168,8 +170,8 @@ def resolve_provider(
         primary = cls(model=model)
 
     if fallback and provider_name in ("ollama", "local"):
-        from .tiering import resolve_fallback_target
         from .providers.fallback import FallbackProvider
+        from .tiering import resolve_fallback_target
 
         target = resolve_fallback_target(fallback_provider, fallback_model)
         if target:
@@ -185,8 +187,8 @@ def resolve_provider(
                     except TypeError:
                         fb_instance = fb_cls(model=fb_model_name)
                     return FallbackProvider(primary, fb_instance, debug=debug)
-                except Exception:
-                    pass
+                except Exception as e:  # noqa: BLE001 - fallback setup is opportunistic; any failure here should just leave the primary provider in place
+                    logger.debug("Fallback provider setup failed, using primary only: %s", e)
 
     return primary
 

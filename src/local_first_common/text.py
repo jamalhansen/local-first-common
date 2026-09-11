@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def is_english(text: str) -> bool:
     try:
         from langdetect import detect
         return detect(text) == 'en'
-    except Exception:
+    except Exception:  # noqa: BLE001 - langdetect is a best-effort signal; assume English rather than reject on any detector failure
         return True
 
 def looks_like_article(text: str, min_words: int = 200) -> bool:
@@ -34,9 +34,7 @@ def looks_like_article(text: str, min_words: int = 200) -> bool:
     if len(words) < min_words:
         return False
     paragraphs = [p for p in text.split('\n\n') if p.strip()]
-    if len(paragraphs) < 3 and len(words) > 500:
-        return False
-    return True
+    return not (len(paragraphs) < 3 and len(words) > 500)
 
 def strip_wikilinks(text: str) -> str:
     text = re.sub(r"\[\[[^\]|]+\|([^\]]+)\]\]", r"\1", text)
@@ -90,6 +88,4 @@ def is_high_signal(text: str) -> bool:
             return len(words) > 12
     if len(words) >= 4:
         return True
-    if any(w.rstrip(":,;.") in _SIGNAL_VERBS for w in words):
-        return True
-    return False
+    return any(w.rstrip(":,;.") in _SIGNAL_VERBS for w in words)

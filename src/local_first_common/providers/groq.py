@@ -1,6 +1,6 @@
-import os
 import logging
-from typing import Any, Dict, List, Optional, Union
+import os
+from typing import Any, ClassVar
 
 import httpx
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class GroqProvider(BaseProvider):
     default_model = "llama-3.3-70b-versatile"
-    known_models: List[str] = [
+    known_models: ClassVar[list[str]] = [
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
         "mixtral-8x7b-32768",
@@ -21,9 +21,9 @@ class GroqProvider(BaseProvider):
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         debug: bool = False,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("GROQ_API_KEY")
@@ -36,12 +36,12 @@ class GroqProvider(BaseProvider):
 
     def _build_payload(
         self, system: str, user: str, template: str, is_json: bool
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         actual_system = system
         if template:
             actual_system += f"\n\nYou MUST return a valid JSON object matching this structure:\n{template}\nDO NOT include any other text."
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": actual_system},
@@ -56,9 +56,9 @@ class GroqProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
 
@@ -103,7 +103,7 @@ class GroqProvider(BaseProvider):
                 },
             )
             raise RuntimeError(f"Groq API error: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
             logger.warning(
                 "Groq request failed for %s: %s",
                 self.model,
@@ -127,9 +127,9 @@ class GroqProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
 
@@ -176,7 +176,7 @@ class GroqProvider(BaseProvider):
                 },
             )
             raise RuntimeError(f"Groq API error: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
             logger.warning(
                 "Groq request failed for %s: %s",
                 self.model,

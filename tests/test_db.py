@@ -1,6 +1,7 @@
 """Tests for db.py — SQLite utilities for local-first tools."""
 
 import sqlite3
+
 from local_first_common import db
 
 

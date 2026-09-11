@@ -4,10 +4,9 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
-import yaml
 import frontmatter
+import yaml
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,6 @@ class BasePersona(BaseModel):
 class ObsidianPersona(BasePersona):
     """Legacy model for Obsidian personas — now just an alias for BasePersona."""
 
-    pass
 
 
 class PersonaBias(BaseModel):
@@ -65,7 +63,7 @@ class PersonaCard(BaseModel):
         )
 
 
-def get_brand_voice(path: Optional[Path] = None) -> str:
+def get_brand_voice(path: Path | None = None) -> str:
     """Load brand voice from a file. Returns empty string if not found.
 
     This ensures personal style guides stay out of the repository.
@@ -83,7 +81,7 @@ def get_brand_voice(path: Optional[Path] = None) -> str:
     try:
         post = frontmatter.load(str(path_obj))
         content = post.content
-    except Exception:
+    except Exception:  # noqa: BLE001 - a hand-edited voice file can fail to parse as frontmatter in many ways; fall back to raw text
         content = path_obj.read_text(encoding="utf-8")
 
     # Try to find a concise section
@@ -99,7 +97,7 @@ def get_brand_voice(path: Optional[Path] = None) -> str:
     return content[:2000].strip()
 
 
-def _personas_dir(override: Optional[Path] = None) -> Path:
+def _personas_dir(override: Path | None = None) -> Path:
     return override if override is not None else DEFAULT_PERSONAS_DIR
 
 
@@ -116,7 +114,7 @@ def load_any_persona(path: Path) -> BasePersona:
         raise ValueError(f"Unsupported persona format: {path.suffix}")
 
 
-def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
+def load_persona(name: str, personas_dir: Path | None = None) -> BasePersona:
     """Load a single persona by name (checking .yaml then .md in a specific dir)."""
     directory = _personas_dir(personas_dir)
     yaml_path = directory / f"{name.lower()}.yaml"
@@ -145,8 +143,8 @@ def load_persona(name: str, personas_dir: Optional[Path] = None) -> BasePersona:
 def get_persona(
     name: str,
     category: str,
-    vault_path: Optional[Path] = None,
-    config_dir: Optional[Path] = None,
+    vault_path: Path | None = None,
+    config_dir: Path | None = None,
 ) -> BasePersona:
     """Load a single persona by name and category.
 
@@ -166,7 +164,7 @@ def get_persona(
 
         if vault_file.exists():
             return load_obsidian_persona(vault_file)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - vault lookup is a first attempt with a config fallback below; any failure here should fall through, not crash
         logger.warning(
             "Vault persona lookup failed for %s/%s: %s",
             category,
@@ -193,9 +191,9 @@ def get_persona(
 
 
 def list_personas(
-    category: Optional[str] = None,
-    vault_path: Optional[Path] = None,
-    config_dir: Optional[Path] = None,
+    category: str | None = None,
+    vault_path: Path | None = None,
+    config_dir: Path | None = None,
 ) -> list[BasePersona]:
     """Return all persona cards from vault and config directory, sorted by name.
 
@@ -217,22 +215,11 @@ def list_personas(
             for md_file in vault_dir.glob("*.md"):
                 try:
                     p = load_obsidian_persona(md_file)
-                    # If category is specified, we might want to filter by frontmatter too
-                    if category:
-                        # User specified category: "[[Persona]]" check
-                        cat_field = p.metadata.get("category", "")
-                        # Handle both string and list/link formats
-                        if isinstance(cat_field, str):
-                            if (
-                                "[[Persona]]" not in cat_field
-                                and cat_field != "Persona"
-                            ):
-                                # For some categories we might be more lenient,
-                                # but if they are in the folder, they are likely personas.
-                                pass
-
+                    # Being in the category folder is treated as sufficient; frontmatter's
+                    # own `category` field is not used to filter further (see git history
+                    # if stricter filtering is ever wanted).
                     personas_dict[p.name.lower()] = p
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - one bad persona file shouldn't stop listing the rest
                     logger.warning(
                         "Skipping invalid vault persona file %s: %s",
                         md_file,
@@ -242,7 +229,7 @@ def list_personas(
                             "source_location": str(md_file),
                         },
                     )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - vault listing is a first attempt with a config fallback below; any failure here should fall through, not crash
         logger.warning(
             "Vault persona listing failed for category %s: %s",
             category,
@@ -267,7 +254,7 @@ def list_personas(
                 name_key = p.name.lower()
                 if name_key not in personas_dict:
                     personas_dict[name_key] = p
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - one bad persona file shouldn't stop listing the rest
                 logger.warning(
                     "Skipping invalid config persona YAML %s: %s",
                     yaml_file,
@@ -285,7 +272,7 @@ def list_personas(
                 name_key = p.name.lower()
                 if name_key not in personas_dict:
                     personas_dict[name_key] = p
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - one bad persona file shouldn't stop listing the rest
                 logger.warning(
                     "Skipping invalid config persona markdown %s: %s",
                     md_file,
@@ -305,7 +292,7 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         post = frontmatter.load(path)
         content = post.content
         fm = post.metadata
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - a hand-edited persona file can fail to parse as frontmatter in many ways; fall back to raw text
         logger.warning(f"Failed to load frontmatter from {path}: {e}")
         # Fallback to simple read
         content = path.read_text(encoding="utf-8")
@@ -356,14 +343,14 @@ def load_obsidian_persona(path: Path) -> BasePersona:
 
 
 def list_vault_personas(
-    category: str, vault_path: Optional[Path] = None
+    category: str, vault_path: Path | None = None
 ) -> list[BasePersona]:
     """List all personas in a specific obsidian category (under personas/{category})."""
     return list_personas(category=category, vault_path=vault_path)
 
 
 def list_obsidian_personas(
-    category: str = "brand", vault_path: Optional[Path] = None
+    category: str = "brand", vault_path: Path | None = None
 ) -> list[BasePersona]:
     """List all personas in a specific obsidian category. Legacy alias for list_vault_personas."""
     return list_vault_personas(category, vault_path)

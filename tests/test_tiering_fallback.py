@@ -143,8 +143,8 @@ def test_resolve_provider_wires_fallback(monkeypatch):
 
 
 def test_pydantic_ai_tier_build(monkeypatch):
-    from unittest.mock import MagicMock
     import sys
+    from unittest.mock import MagicMock
 
     mock_mod = MagicMock()
     mock_mod.models.anthropic.AnthropicModel.side_effect = lambda m: MagicMock(model_name=m)

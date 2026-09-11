@@ -1,8 +1,8 @@
 """Shared utilities for reading and writing Obsidian markdown vaults."""
 import re
-from datetime import date, timedelta
+from collections.abc import Iterator
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Iterator, Optional
 
 import frontmatter
 
@@ -25,7 +25,7 @@ def find_vault_root(env_var: str = "OBSIDIAN_VAULT_PATH") -> Path:
     return current
 
 
-def get_daily_note_path(vault_root: Path, note_date: date, subdir: Optional[str] = None) -> Path:
+def get_daily_note_path(vault_root: Path, note_date: date, subdir: str | None = None) -> Path:
     """Return the path for a daily note. Optionally nested under subdir."""
     base = vault_root / subdir if subdir else vault_root
     return base / f"{note_date.isoformat()}.md"
@@ -59,7 +59,7 @@ def render_obsidian_template(template: str, note_date: date) -> str:
 def append_to_daily_note(
     note_path: Path,
     content: str,
-    template_path: Optional[Path] = None,
+    template_path: Path | None = None,
 ) -> None:
     """
     Append content to an existing or new daily note.
@@ -78,21 +78,21 @@ def append_to_daily_note(
         note_path.write_text(base + content + "\n", encoding="utf-8")
 
 
-def _new_note_base(note_path: Path, template_path: Optional[Path]) -> str:
+def _new_note_base(note_path: Path, template_path: Path | None) -> str:
     if template_path and template_path.exists():
         try:
             note_date = date.fromisoformat(note_path.stem[:10])
         except ValueError:
-            note_date = date.today()
+            note_date = datetime.now().astimezone().date()
         rendered = render_obsidian_template(template_path.read_text(encoding="utf-8"), note_date)
         return rendered.rstrip() + "\n\n---\n\n"
-    return f"---\ndate: {date.today().isoformat()}\n---\n\n"
+    return f"---\ndate: {datetime.now().astimezone().date().isoformat()}\n---\n\n"
 
 
 def load_daily_notes_for_week(
     vault_root: Path,
     dates: list[date],
-    subdir: Optional[str] = None,
+    subdir: str | None = None,
 ) -> list[dict]:
     """Load daily notes for a list of dates. Returns [{date, content, path}] for found files."""
     notes = []
@@ -102,14 +102,14 @@ def load_daily_notes_for_week(
             try:
                 post = frontmatter.load(str(path))
                 notes.append({"date": d, "content": post.content, "path": path})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - a hand-edited note can fail to parse in many ways; skip it, don't crash the whole week's load
                 print(f"Warning: could not load {path}: {e}")
     return notes
 
 
 def iter_daily_notes(
     vault_root: Path,
-    subdir: Optional[str] = None,
+    subdir: str | None = None,
 ) -> Iterator[dict]:
     """Yield all daily notes (newest first) as {date, content, path} dicts."""
     base = vault_root / subdir if subdir else vault_root
@@ -118,7 +118,8 @@ def iter_daily_notes(
             note_date = date.fromisoformat(path.stem)
             post = frontmatter.load(str(path))
             yield {"date": note_date, "content": post.content, "path": path}
-        except Exception:
+        except Exception as e:  # noqa: BLE001 - a hand-edited note can fail to parse in many ways; skip it, don't stop the whole iteration
+            print(f"Warning: could not load {path}: {e}")
             continue
 
 
@@ -139,13 +140,13 @@ def load_personal_context(context_file: Path) -> str:
     return ""
 
 
-def load_goal_context(vault_root: Path, target_date: Optional[date] = None) -> str:
+def load_goal_context(vault_root: Path, target_date: date | None = None) -> str:
     """
     Load goals matching target_date. 
     Includes both the annual goal file and the monthly focus file if found.
     """
     if target_date is None:
-        target_date = date.today()
+        target_date = datetime.now().astimezone().date()
 
     year = target_date.strftime("%Y")
     month_str = target_date.strftime("%Y-%m")
@@ -159,14 +160,14 @@ def load_goal_context(vault_root: Path, target_date: Optional[date] = None) -> s
         try:
             post = frontmatter.load(str(yearly_path))
             parts.append(f"### {year} Yearly Goals\n\n" + post.content.strip())
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a hand-edited goals file can fail to parse in many ways; skip it, don't crash context loading
             print(f"Warning: could not load yearly goals {yearly_path}: {e}")
 
     if monthly_path.exists():
         try:
             post = frontmatter.load(str(monthly_path))
             parts.append(f"### {month_str} Monthly Focus\n\n" + post.content.strip())
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a hand-edited goals file can fail to parse in many ways; skip it, don't crash context loading
             print(f"Warning: could not load monthly goals {monthly_path}: {e}")
 
     combined = "\n\n".join(parts)

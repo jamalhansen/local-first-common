@@ -17,12 +17,12 @@ PROVIDERS = {
 
 __all__ = [
     "PROVIDERS",
-    "BaseProvider",
-    "FallbackProvider",
-    "OllamaProvider",
     "AnthropicProvider",
+    "BaseProvider",
+    "DeepSeekProvider",
+    "FallbackProvider",
     "GeminiProvider",
     "GroqProvider",
-    "DeepSeekProvider",
+    "OllamaProvider",
 ]
 

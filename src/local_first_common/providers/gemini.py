@@ -1,6 +1,6 @@
-import os
 import logging
-from typing import Any, Dict, List, Optional, Union
+import os
+from typing import Any, ClassVar
 
 from .base import BaseProvider
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class GeminiProvider(BaseProvider):
     default_model = "gemini-2.0-flash"
-    known_models: List[str] = [
+    known_models: ClassVar[list[str]] = [
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
         "gemini-1.5-pro",
@@ -19,9 +19,9 @@ class GeminiProvider(BaseProvider):
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         debug: bool = False,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
@@ -34,9 +34,9 @@ class GeminiProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         try:
             from google import genai
             from google.genai import types
@@ -71,7 +71,7 @@ class GeminiProvider(BaseProvider):
                 config=config,
             )
             content = response.text
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "not found" in err.lower() or "invalid" in err.lower():
                 logger.warning(
@@ -110,9 +110,9 @@ class GeminiProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         try:
             from google import genai
             from google.genai import types
@@ -147,7 +147,7 @@ class GeminiProvider(BaseProvider):
                 config=config,
             )
             content = response.text
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "not found" in err.lower() or "invalid" in err.lower():
                 logger.warning(

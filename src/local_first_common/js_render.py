@@ -104,6 +104,5 @@ def host_of(url: str) -> str:
     so "x.com" and "www.x.com" are treated as the same domain everywhere.
     """
     host = urlparse(url).netloc.lower()
-    if host.startswith("www."):
-        host = host[4:]
+    host = host.removeprefix("www.")
     return host

@@ -15,7 +15,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 # ── Checks ────────────────────────────────────────────────────────────────────
 
 def check_pyproject_paths(repo_path: Path) -> list[str]:
@@ -42,6 +41,7 @@ def check_gitleaks(repo_path: Path) -> list[str]:
             cwd=repo_path,
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
             lines = (result.stdout + result.stderr).strip().splitlines()

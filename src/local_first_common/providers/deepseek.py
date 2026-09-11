@@ -1,6 +1,6 @@
-import os
 import logging
-from typing import Any, Dict, List, Optional, Union
+import os
+from typing import Any, ClassVar
 
 import httpx
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class DeepSeekProvider(BaseProvider):
     default_model = "deepseek-chat"
-    known_models: List[str] = [
+    known_models: ClassVar[list[str]] = [
         "deepseek-chat",
         "deepseek-reasoner",
     ]
@@ -20,9 +20,9 @@ class DeepSeekProvider(BaseProvider):
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         debug: bool = False,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
@@ -33,12 +33,12 @@ class DeepSeekProvider(BaseProvider):
 
     def _build_payload(
         self, system: str, user: str, template: str, is_json: bool
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         actual_system = system
         if template:
             actual_system += f"\n\nYou MUST return a valid JSON object matching this structure:\n{template}\nDO NOT include any other text."
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": actual_system},
@@ -53,9 +53,9 @@ class DeepSeekProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
 
@@ -96,7 +96,7 @@ class DeepSeekProvider(BaseProvider):
                 },
             )
             raise RuntimeError(f"DeepSeek API error: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
             logger.warning(
                 "DeepSeek request failed for %s: %s",
                 self.model,
@@ -120,9 +120,9 @@ class DeepSeekProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
 
@@ -166,7 +166,7 @@ class DeepSeekProvider(BaseProvider):
                 },
             )
             raise RuntimeError(f"DeepSeek API error: {e}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
             logger.warning(
                 "DeepSeek request failed for %s: %s",
                 self.model,

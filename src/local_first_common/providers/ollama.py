@@ -1,25 +1,25 @@
-from typing import Any, Dict, List, Optional, Union
 import logging
+from typing import Any, ClassVar
 
 import httpx
 
 from .base import BaseProvider
-from .errors import ModelNotFoundError, ConnectionError
+from .errors import ConnectionError, ModelNotFoundError
 
 logger = logging.getLogger(__name__)
 
 
 class OllamaProvider(BaseProvider):
     default_model = "phi4-mini"
-    known_models: List[str] = []  # fetched dynamically from /api/tags
+    known_models: ClassVar[list[str]] = []  # fetched dynamically from /api/tags
     models_url = "http://localhost:11434"
 
-    def __init__(self, model: Optional[str] = None, debug: bool = False):
+    def __init__(self, model: str | None = None, debug: bool = False):
         # We handle model resolution in resolve_provider, but for direct usage:
         super().__init__(model=model, debug=debug)
-        self._installed_models_cache: Optional[List[Dict[str, Any]]] = None
+        self._installed_models_cache: list[dict[str, Any]] | None = None
 
-    def _get_model_info(self) -> List[Dict[str, Any]]:
+    def _get_model_info(self) -> list[dict[str, Any]]:
         """Fetch full model metadata from Ollama."""
         if self._installed_models_cache is not None:
             return self._installed_models_cache
@@ -30,11 +30,11 @@ class OllamaProvider(BaseProvider):
                 data = response.json()
                 self._installed_models_cache = data.get("models", [])
                 return self._installed_models_cache
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Ollama may be offline or unreachable; degrade to an empty list rather than crash
             logger.warning(f"Could not fetch Ollama models: {e}")
             return []
 
-    def _get_installed_model_names(self) -> List[str]:
+    def _get_installed_model_names(self) -> list[str]:
         return [m["name"] for m in self._get_model_info()]
 
     @staticmethod
@@ -50,7 +50,7 @@ class OllamaProvider(BaseProvider):
                 check=True,
             )
             total_bytes = int(result.stdout.strip())
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort heuristic; any failure (non-macOS, sysctl missing, unparseable output) should just skip the optimization
             return False
         return total_bytes >= 16 * 1024 * 1024 * 1024
 
@@ -111,9 +111,9 @@ class OllamaProvider(BaseProvider):
         return prompt
 
     def _build_payload(
-        self, prompt: str, is_json: bool, images: Optional[list[str]] = None
-    ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
+        self, prompt: str, is_json: bool, images: list[str] | None = None
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
@@ -128,9 +128,9 @@ class OllamaProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
 
@@ -179,9 +179,9 @@ class OllamaProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
 

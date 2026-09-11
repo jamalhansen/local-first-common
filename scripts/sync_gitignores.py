@@ -37,8 +37,7 @@ def sync_gitignore(repo_path: Path):
             if existing_lines:
                 f.write("\n")
             f.write("# Workspace standard ignores\n")
-            for pattern in sorted(missing):
-                f.write(f"{pattern}\n")
+            f.writelines(f"{pattern}\n" for pattern in sorted(missing))
     else:
         print(f"  [OK]     {repo_path.name}/.gitignore")
 

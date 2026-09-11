@@ -1,6 +1,8 @@
 import logging
+from collections.abc import Sequence
+
 import requests
-from typing import Sequence
+
 from .base import SocialReader
 
 logger = logging.getLogger(__name__)

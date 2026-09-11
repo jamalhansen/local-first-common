@@ -1,17 +1,17 @@
 """Unified ingestion for local files and URLs."""
 import logging
 from pathlib import Path
-from typing import Optional
 
 import frontmatter
+
+from .html import extract_main_content, extract_metadata
 from .tracking import Tool, tracked_fetch
-from .html import extract_metadata, extract_main_content
 from .url import clean_url
 
 logger = logging.getLogger(__name__)
 
 
-def ingest_any(source: str, tool: Optional[Tool] = None) -> tuple[str, str]:
+def ingest_any(source: str, tool: Tool | None = None) -> tuple[str, str]:
     """Ingest content from a URL or a local file. Returns (title, content).
     
     Args:
@@ -35,7 +35,7 @@ def ingest_any(source: str, tool: Optional[Tool] = None) -> tuple[str, str]:
     return ingest_file(path)
 
 
-def ingest_url(url: str, tool: Optional[Tool] = None) -> tuple[str, str]:
+def ingest_url(url: str, tool: Tool | None = None) -> tuple[str, str]:
     """Fetch URL and extract main content. Returns (title, content)."""
     url = clean_url(url)
     # Use a dummy tool if none provided to satisfy tracked_fetch requirement
@@ -59,7 +59,7 @@ def ingest_file(path: Path) -> tuple[str, str]:
             post = frontmatter.load(path)
             title = post.get("title") or path.stem
             return title, post.content
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - malformed frontmatter in a user's own file should fall back to plain text, not crash
             logger.warning("Failed to parse frontmatter for %s: %s", path, e)
             # Fallback to plain text
             content = path.read_text(encoding="utf-8")

@@ -1,8 +1,10 @@
 """Tests for http.py — network fetching utilities."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
 import requests
+
 from local_first_common import http
 
 

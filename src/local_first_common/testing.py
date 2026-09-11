@@ -1,7 +1,7 @@
 """Test utilities: MockProvider and shared pytest fixtures for use in project test suites."""
 
 import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, ClassVar
 
 try:
     import pytest
@@ -9,7 +9,6 @@ except ImportError:  # pragma: no cover - runtime path when pytest is not instal
     pytest = None
 
 from .providers.base import BaseProvider
-
 
 if pytest is not None:
 
@@ -37,14 +36,14 @@ class MockProvider(BaseProvider):
     """A deterministic provider for use in tests. Records calls and returns preset responses."""
 
     default_model = "mock"
-    known_models: list = ["mock"]
+    known_models: ClassVar[list] = ["mock"]
     models_url = "https://example.com"
 
     def __init__(
         self,
         response: Any = _AUTO,
-        model: Optional[str] = None,
-        raise_error: Optional[str] = None,
+        model: str | None = None,
+        raise_error: str | None = None,
     ):
         super().__init__(model=model or self.default_model)
         self._response = response
@@ -55,9 +54,9 @@ class MockProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         self.calls.append((system, user))
         if self._raise_error:
             raise RuntimeError(self._raise_error)
@@ -76,7 +75,7 @@ class MockProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         return self._complete(system, user, response_model, images=images)

@@ -20,20 +20,24 @@ class TestGetClipboard:
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             result = get_clipboard()
         mock_run.assert_called_once_with(
-            ["pbpaste"], capture_output=True, text=True, timeout=5
+            ["pbpaste"], capture_output=True, text=True, timeout=5, check=False
         )
         assert result == "clipboard content"
 
     def test_falls_back_to_pyperclip_on_file_not_found(self):
         fake = _mock_pyperclip("pyperclip content")
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            with patch.dict(sys.modules, {"pyperclip": fake}):
-                result = get_clipboard()
+        with (
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            patch.dict(sys.modules, {"pyperclip": fake}),
+        ):
+            result = get_clipboard()
         assert result == "pyperclip content"
 
     def test_falls_back_to_pyperclip_on_timeout(self):
         fake = _mock_pyperclip("timed out content")
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("pbpaste", 5)):
-            with patch.dict(sys.modules, {"pyperclip": fake}):
-                result = get_clipboard()
+        with (
+            patch("subprocess.run", side_effect=subprocess.TimeoutExpired("pbpaste", 5)),
+            patch.dict(sys.modules, {"pyperclip": fake}),
+        ):
+            result = get_clipboard()
         assert result == "timed out content"

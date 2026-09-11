@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -40,20 +40,20 @@ class FallbackProvider(BaseProvider):
         self.primary.model = value
 
     @property
-    def input_tokens(self) -> Optional[int]:
+    def input_tokens(self) -> int | None:
         return getattr(self._active, "input_tokens", None)
 
     @property
-    def output_tokens(self) -> Optional[int]:
+    def output_tokens(self) -> int | None:
         return getattr(self._active, "output_tokens", None)
 
     def _complete(
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         try:
             result = self.primary._complete(
                 system, user, response_model=response_model, images=images
@@ -85,9 +85,9 @@ class FallbackProvider(BaseProvider):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]:
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]:
         try:
             result = await self.primary._acomplete(
                 system, user, response_model=response_model, images=images

@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 __all__ = [
     "FAST_TIER_MODELS",
     "REASONING_TIER_MODELS",
-    "get_tier_model",
     "detect_active_cloud_provider",
+    "get_tier_model",
     "resolve_fallback_target",
 ]
 
@@ -44,12 +43,16 @@ def get_tier_model(tier: str, provider: str) -> str:
     normalized_tier = tier.strip().lower()
     normalized_provider = provider.strip().lower()
 
-    if normalized_tier in ("fast", "slm", "classification", "tagging"):
-        if normalized_provider in FAST_TIER_MODELS:
-            return FAST_TIER_MODELS[normalized_provider]
-    elif normalized_tier in ("reasoning", "cloud", "frontier", "critique"):
-        if normalized_provider in REASONING_TIER_MODELS:
-            return REASONING_TIER_MODELS[normalized_provider]
+    if (
+        normalized_tier in ("fast", "slm", "classification", "tagging")
+        and normalized_provider in FAST_TIER_MODELS
+    ):
+        return FAST_TIER_MODELS[normalized_provider]
+    elif (
+        normalized_tier in ("reasoning", "cloud", "frontier", "critique")
+        and normalized_provider in REASONING_TIER_MODELS
+    ):
+        return REASONING_TIER_MODELS[normalized_provider]
 
     # Fallback to provider default if tier unknown
     from .pydantic_ai_utils import PROVIDER_DEFAULTS
@@ -57,7 +60,7 @@ def get_tier_model(tier: str, provider: str) -> str:
     return PROVIDER_DEFAULTS.get(normalized_provider, "unknown")
 
 
-def detect_active_cloud_provider() -> Optional[tuple[str, str]]:
+def detect_active_cloud_provider() -> tuple[str, str] | None:
     """Detect available cloud provider from active environment API keys.
 
     Returns (provider_name, model_name) or None if no cloud keys are set.
@@ -75,9 +78,9 @@ def detect_active_cloud_provider() -> Optional[tuple[str, str]]:
 
 
 def resolve_fallback_target(
-    requested_provider: Optional[str] = None,
-    requested_model: Optional[str] = None,
-) -> Optional[tuple[str, str]]:
+    requested_provider: str | None = None,
+    requested_model: str | None = None,
+) -> tuple[str, str] | None:
     """Resolve the target provider and model for automatic fallback.
 
     Checks:

@@ -59,7 +59,7 @@ class BaseScorer:
         """
         try:
             raw = provider.complete(self.system_prompt, user_message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any provider failure should score as "no result", per this method's own contract
             logger.warning("Provider error during scoring: %s", e)
             return None
         return self._parse_response(raw)

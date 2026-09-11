@@ -8,6 +8,7 @@ call to any command using it with "Invalid value for '--init-config':
 '--init-config' is not a valid boolean" -- not just --init-config itself.
 """
 from typing import Annotated
+
 import typer
 from typer.testing import CliRunner
 

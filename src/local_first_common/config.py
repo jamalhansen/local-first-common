@@ -1,8 +1,9 @@
 import os
 import sys
-import toml
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+import toml
 
 CONFIG_DIR = Path("~/.config/local-first").expanduser()
 
@@ -14,7 +15,7 @@ def load_config(tool_name: str) -> dict[str, Any]:
         return {}
     try:
         return toml.load(config_path)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - a hand-edited TOML file can fail in many ways; degrade to defaults rather than crash every tool
         print(
             f"Warning: Failed to load config from {config_path}: {e}", file=sys.stderr
         )
@@ -24,9 +25,9 @@ def load_config(tool_name: str) -> dict[str, Any]:
 def get_setting(
     tool_name: str,
     key: str,
-    cli_val: Optional[Any] = None,
-    env_var: Optional[str] = None,
-    default: Optional[Any] = None,
+    cli_val: Any | None = None,
+    env_var: str | None = None,
+    default: Any | None = None,
 ) -> Any:
     """Resolve a setting based on standard precedence: CLI > Env > Config > Default."""
     if cli_val is not None:

@@ -28,7 +28,7 @@ def clean_url(url: str) -> str:
         kept = sorted((k, v) for k, v in qsl if k.lower() not in _TRACKING_PARAMS)
         clean_query = urlencode(kept)
         return parsed._replace(query=clean_query).geturl()
-    except Exception:
+    except Exception:  # noqa: BLE001 - malformed URL from an untrusted source; return unchanged rather than crash, per this function's own contract
         return url
 
 
@@ -54,5 +54,5 @@ def normalize_url(url: str) -> str:
             scheme = "https"
 
         return parsed._replace(scheme=scheme, netloc=netloc, path=path).geturl()
-    except Exception:
+    except Exception:  # noqa: BLE001 - malformed URL from an untrusted source; return unchanged rather than crash, per this function's own contract
         return url

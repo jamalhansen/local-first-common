@@ -1,6 +1,8 @@
 import logging
+from collections.abc import Sequence
+
 import requests
-from typing import Sequence, Optional
+
 from .base import SocialReader
 
 logger = logging.getLogger(__name__)
@@ -99,7 +101,7 @@ class BlueskyReader(SocialReader):
     def __init__(self, handle: str = "", app_password: str = ""):
         self.handle = handle
         self.app_password = app_password
-        self._token: Optional[str] = None
+        self._token: str | None = None
         if handle and app_password:
             self._token = get_auth_token(handle, app_password)
 

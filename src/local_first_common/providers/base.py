@@ -4,7 +4,8 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional, Union, get_args, get_origin
+from collections.abc import Callable
+from typing import Any, Union, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,9 @@ class BaseProvider(ABC):
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         debug: bool = False,
-        report_callback: Optional[Callable[[str], None]] = None,
+        report_callback: Callable[[str], None] | None = None,
         interactive_output: bool = True,
     ):
         self.model = model or self.default_model
@@ -43,18 +44,18 @@ class BaseProvider(ABC):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]: ...
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]: ...
 
     @abstractmethod
     async def _acomplete(
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
-    ) -> Union[str, Dict[str, Any]]: ...
+        response_model: Any | None = None,
+        images: list[str] | None = None,
+    ) -> str | dict[str, Any]: ...
 
     @staticmethod
     def _is_rate_limit_error(e: Exception) -> bool:
@@ -90,10 +91,10 @@ class BaseProvider(ABC):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any],
-        images: Optional[list[str]],
+        response_model: Any | None,
+        images: list[str] | None,
         rate_limit_retries: int,
-    ) -> Union[str, Dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         """Call _complete with exponential backoff on 429 rate-limit errors.
 
         Waits 5s, 10s, 20s, ... between retries (doubles each time).
@@ -127,10 +128,10 @@ class BaseProvider(ABC):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any],
-        images: Optional[list[str]],
+        response_model: Any | None,
+        images: list[str] | None,
         rate_limit_retries: int,
-    ) -> Union[str, Dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         """Async version of _complete_with_backoff."""
         for attempt in range(rate_limit_retries + 1):
             try:
@@ -161,11 +162,11 @@ class BaseProvider(ABC):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
+        response_model: Any | None = None,
+        images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
-    ) -> Union[str, Dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         """Call the LLM with retry on JSON/validation failure and 429 rate limits.
 
         max_retries controls retries on bad responses (error injected into prompt).
@@ -202,11 +203,11 @@ class BaseProvider(ABC):
         self,
         system: str,
         user: str,
-        response_model: Optional[Any] = None,
-        images: Optional[list[str]] = None,
+        response_model: Any | None = None,
+        images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
-    ) -> Union[str, Dict[str, Any]]:
+    ) -> str | dict[str, Any]:
         """Async version of complete(). Same retry behaviour."""
         current_user = user
 
@@ -274,7 +275,7 @@ class BaseProvider(ABC):
                 data[field_name] = [data[field_name]]
         return data
 
-    def _parse_json_response(self, content: str, response_model: Any) -> Dict[str, Any]:
+    def _parse_json_response(self, content: str, response_model: Any) -> dict[str, Any]:
         try:
             result = json.loads(content)
             return self._clean_json(result, response_model)
@@ -284,7 +285,7 @@ class BaseProvider(ABC):
                 try:
                     result = json.loads(match.group())
                     return self._clean_json(result, response_model)
-                except json.JSONDecodeError as e:
+                except json.JSONDecodeError:
                     logger.warning(
                         "JSON parse failed even after extracting object from provider response.",
                         extra={
@@ -292,7 +293,7 @@ class BaseProvider(ABC):
                             "source_location": self.model,
                         },
                     )
-                    raise e
+                    raise
             logger.warning(
                 "JSON parse failed and no object payload could be extracted from provider response.",
                 extra={

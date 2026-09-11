@@ -22,7 +22,7 @@ from pathlib import Path
 
 _PY_TOOLING = Path.home() / "projects" / "py-tooling"
 sys.path.insert(0, str(_PY_TOOLING / "scripts"))
-from pre_commit_check import run_scan as _base_scan  # noqa: E402
+from pre_commit_check import run_scan as _base_scan
 
 # ── Local-first-specific constants ───────────────────────────────────────────
 
@@ -40,7 +40,7 @@ DIRECT_LLM_IMPORT_RE = re.compile(
 def _get_staged_or_all(repo_path: Path, all_files: bool) -> list[str]:
     import subprocess
     cmd = ["git", "ls-files"] if all_files else ["git", "diff", "--cached", "--name-only"]
-    result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True, check=False)
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 

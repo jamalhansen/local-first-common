@@ -31,12 +31,12 @@ def run_scan(repo_path: Path, verbose: bool = False) -> bool:
     commit_cmd = [sys.executable, str(_PRE_COMMIT), str(repo_path), "--all-files"]
     if verbose:
         commit_cmd.append("--verbose")
-    clean &= subprocess.run(commit_cmd).returncode == 0
+    clean &= subprocess.run(commit_cmd, check=False).returncode == 0
 
     push_cmd = [sys.executable, str(_PRE_PUSH), str(repo_path)]
     if verbose:
         push_cmd.append("--verbose")
-    clean &= subprocess.run(push_cmd).returncode == 0
+    clean &= subprocess.run(push_cmd, check=False).returncode == 0
 
     return clean
 

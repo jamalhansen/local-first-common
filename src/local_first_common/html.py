@@ -1,7 +1,9 @@
 import re
 from typing import NamedTuple
 from urllib.parse import urljoin, urlparse
+
 from bs4 import BeautifulSoup
+
 
 class ArticleMetadata(NamedTuple):
     title: str

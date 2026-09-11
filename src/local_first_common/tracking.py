@@ -30,14 +30,15 @@ Typical usage (URL fetch context manager)::
         fetch.title = metadata.title
 """
 
-import os
+import atexit
 import logging
+import os
+import threading
 import time
 import warnings
-import threading
-import atexit
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Self
 from urllib.parse import urlparse
 
 _DEFAULT_SYNC_PATH = Path("~/sync/local-first/processing_log.duckdb").expanduser()
@@ -453,7 +454,7 @@ class _TrackedRun:
     def __init__(self, tool_name, model, source_location, db_path):
         self._run = _TimedRun(tool_name, model, source_location, db_path)
 
-    def __enter__(self) -> "_TrackedRun":
+    def __enter__(self) -> Self:
         self._run.__enter__()
         return self
 
@@ -520,7 +521,7 @@ class _TimedRun:
         self.parse_errors: int | None = None
         self._start: float = 0.0
 
-    def __enter__(self) -> "_TimedRun":
+    def __enter__(self) -> Self:
         self._start = time.monotonic()
         return self
 
@@ -637,7 +638,7 @@ class _FetchContext:
         self.error_message: str | None = None
         self._start: float = 0.0
 
-    def __enter__(self) -> "_FetchContext":
+    def __enter__(self) -> Self:
         from .http import FetchError, fetch_url
 
         self._start = time.monotonic()

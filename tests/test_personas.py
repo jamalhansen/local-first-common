@@ -2,7 +2,12 @@
 import pytest
 import yaml
 
-from local_first_common.personas import PersonaBias, PersonaCard, list_personas, load_persona
+from local_first_common.personas import (
+    PersonaBias,
+    PersonaCard,
+    list_personas,
+    load_persona,
+)
 
 MINIMAL_PERSONA = {
     "name": "Testus",
@@ -74,7 +79,7 @@ class TestLoadPersona:
     def test_malformed_yaml_raises(self, tmp_path):
         bad = tmp_path / "bad.yaml"
         bad.write_text("name: [unclosed", encoding="utf-8")
-        with pytest.raises(Exception):
+        with pytest.raises(yaml.YAMLError):
             load_persona("bad", personas_dir=tmp_path)
 
 

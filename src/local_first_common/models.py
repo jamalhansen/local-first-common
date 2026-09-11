@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import List, Optional, Any, Dict
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
 
 class ContentMetadata(BaseModel):
     """Standard frontmatter metadata for local-first AI tools.
@@ -20,13 +22,13 @@ class ContentMetadata(BaseModel):
 
     category: str = Field("uncategorized", alias="Category")
     status: str = "draft"
-    created: Optional[datetime] = Field(default_factory=datetime.now)
-    published_date: Optional[datetime] = None
-    canonical_url: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    title: Optional[str] = None
-    description: Optional[str] = None
-    author: List[str] = Field(default_factory=list)
+    created: datetime | None = Field(default_factory=datetime.now)
+    published_date: datetime | None = None
+    canonical_url: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    title: str | None = None
+    description: str | None = None
+    author: list[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -63,11 +65,11 @@ class ContentMetadata(BaseModel):
         return self.category.strip("[]")
 
     @classmethod
-    def from_metadata(cls, metadata: Dict[str, Any]) -> "ContentMetadata":
+    def from_metadata(cls, metadata: dict[str, Any]) -> "ContentMetadata":
         """Create from a raw frontmatter dict (e.g. from python-frontmatter)."""
         return cls(**metadata)
 
-    def to_metadata(self) -> Dict[str, Any]:
+    def to_metadata(self) -> dict[str, Any]:
         """Serialise back to a dict suitable for frontmatter writing.
 
         Omits None values and the default ``"uncategorized"`` category so that

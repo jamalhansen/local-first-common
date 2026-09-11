@@ -1,8 +1,8 @@
 import json
+
 import pytest
 
-from local_first_common.llm import strip_json_fences, parse_json_response, try_xml_parse
-
+from local_first_common.llm import parse_json_response, strip_json_fences, try_xml_parse
 
 SAMPLE = {"title": "Test", "score": 8, "tags": ["a", "b"]}
 SAMPLE_JSON = json.dumps(SAMPLE)
