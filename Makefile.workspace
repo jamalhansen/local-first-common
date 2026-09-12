@@ -9,7 +9,7 @@ VERIFY_LOG ?= /tmp/make-verify-latest.log
 # same repo (2026-09-10).
 RUFF_PIN = ruff==0.16.7
 
-.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pipeline-publish pipeline-photos pipeline-weekly pre-commit push unpushed help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
+.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pipeline-publish pipeline-photos pipeline-weekly pre-commit push unpushed check-remotes help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -380,6 +380,7 @@ help:
 	@echo "  make status        - Show which repositories have uncommitted changes"
 	@echo "  make uncommitted   - Show a concise list of repos with uncommitted work"
 	@echo "  make unpushed      - Show which repositories have unpushed commits"
+	@echo "  make check-remotes - Show which repositories have no 'origin' remote configured"
 	@echo "  make check-tools   - Check that all tools follow the standardized structure"
 	@echo "  make help-tools    - Show CLI help/parameters for all tools"
 	@echo "  make check-hooks   - Check if git hooks are installed and up-to-date"
@@ -581,6 +582,20 @@ unpushed:
 			fi \
 		fi \
 	done
+
+check-remotes:
+	@echo "Repositories with no 'origin' remote configured:"
+	@FOUND=0; \
+	for repo in $(REPOS); do \
+		if [ -d "$$repo/.git" ]; then \
+			REMOTE=$$(cd $$repo && git remote get-url origin 2>/dev/null); \
+			if [ -z "$$REMOTE" ]; then \
+				echo "  [ ] $$repo"; \
+				FOUND=1; \
+			fi \
+		fi \
+	done; \
+	if [ "$$FOUND" -eq 0 ]; then echo "  (none -- every repo has a remote)"; fi
 
 check-tools:
 	@FAILED=0; \
