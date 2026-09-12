@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 from typing import Any, ClassVar
@@ -12,6 +13,29 @@ try:
 except ImportError:
     _Anthropic = None  # type: ignore[assignment,misc]
     _AsyncAnthropic = None  # type: ignore[assignment,misc]
+
+
+def _detect_image_media_type(img_b64: str) -> str:
+    """Sniff an image's real media type from its (base64-encoded) magic bytes.
+
+    Claude's vision API rejects a mismatched declared media type, so guessing
+    wrong for anything but a JPEG silently breaks vision calls. Falls back to
+    JPEG (the previous hardcoded assumption) for anything unrecognized, rather
+    than failing a call outright over a format this doesn't know.
+    """
+    try:
+        raw = base64.b64decode(img_b64)
+    except Exception:  # noqa: BLE001 - malformed input; fall through to the same default as an unrecognized format
+        return "image/jpeg"
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/jpeg"
 
 
 def _extract_text(message: Any) -> str:
@@ -66,7 +90,7 @@ class AnthropicProvider(BaseProvider):
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": "image/jpeg",  # Assume JPEG for now, could detect from header if needed
+                            "media_type": _detect_image_media_type(img),
                             "data": img,
                         },
                     }

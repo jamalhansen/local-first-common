@@ -464,6 +464,54 @@ class TestAnthropicProvider:
         assert result.title == "Test"
 
 
+class TestDetectImageMediaType:
+    def _b64(self, raw: bytes) -> str:
+        import base64
+
+        return base64.b64encode(raw).decode()
+
+    def test_detects_png(self):
+        from local_first_common.providers.anthropic import _detect_image_media_type
+
+        assert _detect_image_media_type(self._b64(b"\x89PNG\r\n\x1a\n" + b"rest")) == "image/png"
+
+    def test_detects_jpeg(self):
+        from local_first_common.providers.anthropic import _detect_image_media_type
+
+        assert _detect_image_media_type(self._b64(b"\xff\xd8\xff" + b"rest")) == "image/jpeg"
+
+    def test_detects_gif(self):
+        from local_first_common.providers.anthropic import _detect_image_media_type
+
+        assert _detect_image_media_type(self._b64(b"GIF89a" + b"rest")) == "image/gif"
+
+    def test_detects_webp(self):
+        from local_first_common.providers.anthropic import _detect_image_media_type
+
+        raw = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + b"rest"
+        assert _detect_image_media_type(self._b64(raw)) == "image/webp"
+
+    def test_unrecognized_format_falls_back_to_jpeg(self):
+        from local_first_common.providers.anthropic import _detect_image_media_type
+
+        assert _detect_image_media_type(self._b64(b"not a real image")) == "image/jpeg"
+
+    def test_malformed_base64_falls_back_to_jpeg(self):
+        from local_first_common.providers.anthropic import _detect_image_media_type
+
+        assert _detect_image_media_type("!!!not base64!!!") == "image/jpeg"
+
+    def test_build_messages_uses_detected_type(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        png_b64 = self._b64(b"\x89PNG\r\n\x1a\n" + b"rest")
+
+        messages = AnthropicProvider()._build_messages("describe this", images=[png_b64])
+
+        image_block = messages[0]["content"][1]
+        assert image_block["source"]["media_type"] == "image/png"
+        assert image_block["source"]["data"] == png_b64
+
+
 class TestGroqProvider:
     def test_missing_api_key_raises(self, monkeypatch):
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
