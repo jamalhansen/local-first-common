@@ -198,6 +198,12 @@ class TestBlockedDomains:
         mock_get.assert_not_called()
 
     @patch("local_first_common.http.fetch_url")
+    def test_discord_invite_returns_none_without_fetching(self, mock_get):
+        item = fetch_article_metadata("https://discord.com/invite/2Pe5uWGcV3")
+        assert item is None
+        mock_get.assert_not_called()
+
+    @patch("local_first_common.http.fetch_url")
     def test_blocked_medium_publication_returns_none(self, mock_get):
         item = fetch_article_metadata("https://ai.plainenglish.io/some-article")
         assert item is None

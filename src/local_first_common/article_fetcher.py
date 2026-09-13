@@ -34,14 +34,20 @@ from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
-# Domains that reliably block scrapers or sit behind paywalls — skipped before
-# any HTTP request is made. Covers Medium and its publication network.
+# Domains that never yield usable article content — skipped before any HTTP
+# request is made. Two different reasons land here: Medium and its
+# publication network reliably block scrapers or sit behind paywalls;
+# discord.com is structurally incapable of it (an invite link is chat-app
+# chrome, never a fetchable article body, confirmed 2026-09-13 via a
+# thin-extraction capture that came back as 104 chars of "enable JavaScript").
 _DEFAULT_BLOCKED_DOMAINS: frozenset[str] = frozenset({
     "medium.com",
     "towardsdatascience.com",
     "betterprogramming.pub",
     "plainenglish.io",
     "levelup.gitconnected.com",
+    "discord.com",
+    "discord.gg",
 })
 
 

@@ -80,3 +80,23 @@ class TestNormalizeUrl:
         doi_url = "https://doi.org/10.48550/arXiv.2609.04611"
         assert normalize_url(doi_url) == normalize_url(abs_url)
         assert normalize_url(doi_url) == "https://arxiv.org/abs/2609.04611"
+
+    def test_strips_fragment(self):
+        url = "https://github.com/rtk-ai/rtk#how-savings-work"
+        assert normalize_url(url) == "https://github.com/rtk-ai/rtk"
+
+    def test_collapses_arxiv_html_form_to_abs(self):
+        html_url = "https://arxiv.org/html/2403.02691v3"
+        abs_url = "https://arxiv.org/abs/2403.02691v3"
+        assert normalize_url(html_url) == normalize_url(abs_url)
+
+    def test_collapses_arxiv_versions_to_same_paper(self):
+        v1 = "https://arxiv.org/abs/2403.02691v1"
+        v3 = "https://arxiv.org/html/2403.02691v3"
+        assert normalize_url(v1) == normalize_url(v3)
+        assert normalize_url(v1) == "https://arxiv.org/abs/2403.02691"
+
+    def test_collapses_arxiv_pdf_form_to_abs(self):
+        pdf_url = "https://arxiv.org/pdf/2403.02691"
+        abs_url = "https://arxiv.org/abs/2403.02691"
+        assert normalize_url(pdf_url) == normalize_url(abs_url)
