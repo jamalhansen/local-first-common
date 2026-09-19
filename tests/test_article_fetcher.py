@@ -334,3 +334,96 @@ class TestDeriveMetadataFromRenderedText:
         title, description = _derive_metadata_from_rendered_text(long_text)
         assert len(title) <= 80
         assert len(description) <= 500
+
+
+class _FakeResponse:
+    def __init__(self, status_code: int, json_body: dict | None = None):
+        self.status_code = status_code
+        self._json_body = json_body or {}
+
+    def json(self):
+        return self._json_body
+
+
+class TestRemoteRetrieverDelegation:
+    """fetch_article_metadata delegates to http-retriever-service when
+    HTTP_RETRIEVER_URL is set, instead of doing its own fetch/extract/render.
+    Patches the module attribute directly since it's read from the env var
+    once at import time, not re-read per call.
+    """
+
+    def test_local_fetch_is_untouched_when_url_is_unset(self):
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", None),
+            patch("local_first_common.http.fetch_url", return_value=SAMPLE_HTML) as mock_fetch,
+        ):
+            item = fetch_article_metadata("https://duckdb.org/article")
+        mock_fetch.assert_called_once()
+        assert item.title == "Understanding DuckDB: A Practical Guide"
+
+    def test_delegates_and_builds_a_feed_item_on_success(self):
+        response = _FakeResponse(
+            200,
+            {
+                "title": "A Real Title",
+                "description": "A real description.",
+                "publishedDate": "2026-09-19T00:00:00.000Z",
+            },
+        )
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response) as mock_post,
+            patch("local_first_common.http.fetch_url") as mock_local_fetch,
+        ):
+            item = fetch_article_metadata(
+                "https://example.com/post",
+                source_url="https://bsky.app/some-post",
+                source_platform="bluesky",
+            )
+        mock_local_fetch.assert_not_called()
+        assert item is not None
+        assert item.title == "A Real Title"
+        assert item.description == "A real description."
+        assert item.source == "example.com"
+        assert item.found_at == "https://bsky.app/some-post"
+        assert item.platform == "bluesky"
+        sent_json = mock_post.call_args.kwargs["json"]
+        assert sent_json["sourceUrl"] == "https://bsky.app/some-post"
+        assert sent_json["sourcePlatform"] == "bluesky"
+
+    def test_thin_result_returns_none_like_the_local_no_title_case(self):
+        response = _FakeResponse(200, {"title": "", "description": ""})
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            item = fetch_article_metadata("https://example.com/thin")
+        assert item is None
+
+    def test_blocked_domain_for_returns_none_status_returns_none(self):
+        response = _FakeResponse(403, {"error": "blocked"})
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            item = fetch_article_metadata("https://example.com/blocked-remotely")
+        assert item is None
+
+    def test_request_failure_returns_none_without_raising(self):
+        import httpx
+
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", side_effect=httpx.ConnectError("connection refused")),
+        ):
+            item = fetch_article_metadata("https://example.com/service-down")
+        assert item is None
+
+    def test_local_blocklist_still_applies_before_any_remote_call(self):
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post") as mock_post,
+        ):
+            item = fetch_article_metadata("https://medium.com/some-post")
+        mock_post.assert_not_called()
+        assert item is None

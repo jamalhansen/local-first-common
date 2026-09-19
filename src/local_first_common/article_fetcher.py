@@ -23,6 +23,7 @@ Typical usage::
 """
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -33,6 +34,14 @@ from local_first_common.tracking import Tool, tracked_fetch
 from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
+
+# Opt-in delegation to http-retriever-service instead of this module's own
+# fetch/blocklist/extract/render pipeline. Unset by default -- local fetching
+# stays the default until callers explicitly opt in per-deployment. See that
+# service's tool doc (BrainSync #50) for why it exists: one warm Chromium
+# instance shared across every caller instead of each tool installing its
+# own Playwright, and one blocklist that doesn't drift across tool versions.
+HTTP_RETRIEVER_URL = os.environ.get("HTTP_RETRIEVER_URL") or None
 
 # Domains that never yield usable article content — skipped before any HTTP
 # request is made. Two different reasons land here: Medium and its
@@ -120,6 +129,48 @@ def _try_render(url: str, renderer) -> str:
         return ""
 
 
+def _fetch_via_retriever(
+    url: str,
+    retriever_url: str,
+    tool_name: str | None,
+    source_url: str | None,
+    source_platform: str | None,
+) -> tuple[str | None, str, str]:
+    """POST to http-retriever-service and return (title, description, published).
+
+    title is None on any failure (blocked, request error, non-200, or a
+    thin result the service itself couldn't improve on) -- the caller
+    treats that exactly like the "no title found" case in the local path.
+    The service does its own fetch_log logging (via its JSONL log + import
+    script), so this makes no tracked_fetch call of its own; passing
+    tool_name/source_url/source_platform through keeps that log's
+    attribution the same as if this had fetched locally.
+    """
+    import httpx
+
+    try:
+        response = httpx.post(
+            f"{retriever_url.rstrip('/')}/fetch",
+            json={
+                "url": url,
+                "toolName": tool_name or None,
+                "sourceUrl": source_url,
+                "sourcePlatform": source_platform,
+            },
+            timeout=25.0,
+        )
+    except httpx.HTTPError as e:
+        logger.warning("http-retriever-service request failed for %s: %s", url, e)
+        return None, "", ""
+
+    if response.status_code != 200:
+        logger.debug("http-retriever-service returned %s for %s", response.status_code, url)
+        return None, "", ""
+
+    data = response.json()
+    return data.get("title") or None, data.get("description") or "", data.get("publishedDate") or ""
+
+
 def fetch_article_metadata(
     url: str,
     blocked_domains: frozenset[str] = frozenset(),
@@ -163,6 +214,29 @@ def fetch_article_metadata(
         return None
 
     _tool = tool or Tool(name="", id=None)
+
+    if HTTP_RETRIEVER_URL:
+        # The service does its own logging -- no tracked_fetch here, that
+        # would double-log the same event under two rows.
+        title, description, published = _fetch_via_retriever(
+            url, HTTP_RETRIEVER_URL, _tool.name, source_url, source_platform
+        )
+        if not title:
+            logger.warning("No title found for %s via http-retriever-service — skipping", url)
+            if session and hasattr(session, "mark_failed"):
+                session.mark_failed(url)
+            return None
+        return FeedItem(
+            title=title,
+            description=description,
+            url=url,
+            source=netloc,
+            published=published,
+            found_at=source_url,
+            search_term=search_term,
+            platform=source_platform,
+        )
+
     with tracked_fetch(_tool, url, source_url=source_url, source_platform=source_platform) as fetch:
         if fetch.html is None:
             logger.warning("Failed to fetch %s: %s", url, fetch.error_message)
