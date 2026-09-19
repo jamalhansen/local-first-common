@@ -391,6 +391,26 @@ class TestRemoteRetrieverDelegation:
         assert sent_json["sourceUrl"] == "https://bsky.app/some-post"
         assert sent_json["sourcePlatform"] == "bluesky"
 
+    def test_sends_no_auth_header_when_api_key_unset(self, monkeypatch):
+        monkeypatch.delenv("HTTP_RETRIEVER_API_KEY", raising=False)
+        response = _FakeResponse(200, {"title": "A Title"})
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response) as mock_post,
+        ):
+            fetch_article_metadata("https://example.com/post")
+        assert "Authorization" not in mock_post.call_args.kwargs["headers"]
+
+    def test_sends_bearer_token_when_api_key_set(self, monkeypatch):
+        monkeypatch.setenv("HTTP_RETRIEVER_API_KEY", "the-real-secret")
+        response = _FakeResponse(200, {"title": "A Title"})
+        with (
+            patch("local_first_common.article_fetcher.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response) as mock_post,
+        ):
+            fetch_article_metadata("https://example.com/post")
+        assert mock_post.call_args.kwargs["headers"]["Authorization"] == "Bearer the-real-secret"
+
     def test_thin_result_returns_none_like_the_local_no_title_case(self):
         response = _FakeResponse(200, {"title": "", "description": ""})
         with (

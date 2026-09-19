@@ -148,6 +148,11 @@ def _fetch_via_retriever(
     """
     import httpx
 
+    headers = {}
+    api_key = os.environ.get("HTTP_RETRIEVER_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
     try:
         response = httpx.post(
             f"{retriever_url.rstrip('/')}/fetch",
@@ -157,6 +162,7 @@ def _fetch_via_retriever(
                 "sourceUrl": source_url,
                 "sourcePlatform": source_platform,
             },
+            headers=headers,
             timeout=25.0,
         )
     except httpx.HTTPError as e:
