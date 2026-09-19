@@ -10,11 +10,10 @@ after it comes back. The gateway itself never sees a schema; it's a dumb
 text-in/text-out transport. This is why no gateway API change was needed to
 support response_model.
 
-Known limitation, not silently ignored: image/vision calls aren't
-supported through the gateway yet (its /complete endpoint has no images
-field). GatewayProvider raises rather than silently dropping images, since
-a caller that needs vision (e.g. artist-agent's self-critique step) would
-otherwise get a confidently wrong text-only response back.
+Vision/image calls (2026-09-19): the gateway's /complete endpoint now
+accepts an `images` field (base64-encoded, no data-URI prefix -- the same
+convention BaseProvider's own `images` parameter already uses), forwarded
+through to whichever real provider handles the request server-side.
 """
 import logging
 import os
@@ -74,13 +73,18 @@ class GatewayProvider(BaseProvider):
             f"structure:\n{template}\nDO NOT include any other text."
         )
 
-    def _payload(self, system: str, user: str, response_model: Any | None) -> dict:
-        return {
+    def _payload(
+        self, system: str, user: str, response_model: Any | None, images: list[str] | None
+    ) -> dict:
+        payload = {
             "provider": self.target_provider,
             "model": self.model,
             "system": self._build_system(system, response_model),
             "user": user,
         }
+        if images:
+            payload["images"] = images
+        return payload
 
     def _handle_response(self, response: httpx.Response, response_model: Any | None) -> str | dict[str, Any]:
         if response.status_code != 200:
@@ -98,15 +102,9 @@ class GatewayProvider(BaseProvider):
         response_model: Any | None = None,
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
-        if images:
-            raise GatewayError(
-                "GatewayProvider does not support image/vision calls yet -- "
-                "llm-gateway-service's /complete endpoint has no images field. "
-                "Use a direct provider for vision calls, not the gateway."
-            )
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
-        payload = self._payload(system, user, response_model)
+        payload = self._payload(system, user, response_model, images)
         try:
             response = httpx.post(
                 f"{self._gateway_url}/complete", json=payload, headers=self._headers(), timeout=self._timeout
@@ -124,15 +122,9 @@ class GatewayProvider(BaseProvider):
         response_model: Any | None = None,
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
-        if images:
-            raise GatewayError(
-                "GatewayProvider does not support image/vision calls yet -- "
-                "llm-gateway-service's /complete endpoint has no images field. "
-                "Use a direct provider for vision calls, not the gateway."
-            )
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
-        payload = self._payload(system, user, response_model)
+        payload = self._payload(system, user, response_model, images)
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(

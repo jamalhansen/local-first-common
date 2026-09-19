@@ -102,11 +102,20 @@ class TestGatewayProviderComplete:
         ):
             GatewayProvider("http://127.0.0.1:8788", "anthropic").complete("s", "u")
 
-    def test_images_raise_gateway_error_rather_than_being_dropped(self):
-        with pytest.raises(GatewayError, match="does not support image"):
-            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete(
-                "s", "u", images=["base64data"]
+    def test_images_are_forwarded_in_the_payload(self):
+        response = _FakeResponse(200, {"text": "I see a cat"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            result = GatewayProvider("http://127.0.0.1:8788", "anthropic").complete(
+                "s", "u", images=["base64imagedata"]
             )
+        assert result == "I see a cat"
+        assert mock_post.call_args.kwargs["json"]["images"] == ["base64imagedata"]
+
+    def test_no_images_key_in_payload_when_none_given(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete("s", "u")
+        assert "images" not in mock_post.call_args.kwargs["json"]
 
 
 class TestGatewayProviderAcomplete:
@@ -130,11 +139,27 @@ class TestGatewayProviderAcomplete:
         assert result == "async answer"
 
     @pytest.mark.asyncio
-    async def test_async_images_raise_gateway_error(self):
-        with pytest.raises(GatewayError, match="does not support image"):
-            await GatewayProvider("http://127.0.0.1:8788", "anthropic").acomplete(
-                "s", "u", images=["base64data"]
+    async def test_async_images_are_forwarded_in_the_payload(self):
+        response = _FakeResponse(200, {"text": "I see a cat"})
+        captured = {}
+
+        class FakeAsyncClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def post(self, *args, **kwargs):
+                captured.update(kwargs)
+                return response
+
+        with patch("httpx.AsyncClient", return_value=FakeAsyncClient()):
+            result = await GatewayProvider("http://127.0.0.1:8788", "anthropic").acomplete(
+                "s", "u", images=["base64imagedata"]
             )
+        assert result == "I see a cat"
+        assert captured["json"]["images"] == ["base64imagedata"]
 
 
 class TestResolveProviderGatewayDelegation:
