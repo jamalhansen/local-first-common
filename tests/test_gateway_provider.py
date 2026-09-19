@@ -38,6 +38,22 @@ class TestGatewayProviderComplete:
         assert sent["system"] == "system prompt"
         assert sent["user"] == "user prompt"
 
+    def test_no_model_given_does_not_send_the_provider_alias_as_the_model(self):
+        """Regression test: model must never fall back to target_provider --
+        "local"/"anthropic" are provider aliases, not real model names. Found
+        live: discover save with no --model sent {"model": "local"} to the
+        gateway, which then failed trying to pull an Ollama model called
+        "local". The server's own resolve_provider() must see an empty
+        model so it applies that provider's real default.
+        """
+        response = _FakeResponse(200, {"text": "ok"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            provider = GatewayProvider("http://127.0.0.1:8788", "local")
+            provider.complete("s", "u")
+        assert provider.model != "local"
+        sent = mock_post.call_args.kwargs["json"]
+        assert sent["model"] != "local"
+
     def test_response_model_embeds_json_template_and_parses_result(self):
         response = _FakeResponse(200, {"text": json.dumps({"score": 0.8, "label": "good"})})
         with patch("httpx.post", return_value=response) as mock_post:

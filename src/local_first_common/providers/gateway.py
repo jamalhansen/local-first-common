@@ -47,7 +47,14 @@ class GatewayProvider(BaseProvider):
         self.target_provider = target_provider
         self._gateway_url = gateway_url.rstrip("/")
         self._timeout = timeout
-        super().__init__(model=model or target_provider, debug=debug)
+        # Deliberately NOT `model or target_provider` -- target_provider is a
+        # provider alias ("local", "anthropic"), never a real model name.
+        # Passing an empty model through (BaseProvider's own `model or
+        # self.default_model` leaves self.model == "" since default_model
+        # is "" here) lets the gateway's own server-side resolve_provider()
+        # call apply that provider's actual default model, the same way it
+        # would for any other caller that omits --model.
+        super().__init__(model=model, debug=debug)
         self.input_tokens: int | None = None
         self.output_tokens: int | None = None
 
