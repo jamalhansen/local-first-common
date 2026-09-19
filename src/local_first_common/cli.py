@@ -1,6 +1,7 @@
 """Typer CLI helpers for consistent provider/model/flag patterns across tools."""
 
 import logging
+import os
 from typing import Any
 
 import typer
@@ -8,6 +9,12 @@ import typer
 from .logging import setup_logging
 
 logger = logging.getLogger(__name__)
+
+# Opt-in delegation to llm-gateway-service instead of instantiating a
+# provider's own SDK client in-process. Unset by default -- see
+# providers/gateway.py's GatewayProvider for what this does and doesn't
+# support (no images/vision yet).
+LLM_GATEWAY_URL = os.environ.get("LLM_GATEWAY_URL") or None
 
 app = typer.Typer(name="local-first", help="Local-first AI tools management.")
 
@@ -159,6 +166,17 @@ def resolve_provider(
         raise typer.BadParameter(
             f"Unknown provider '{provider_name}'. Valid options: {valid}"
         )
+
+    if LLM_GATEWAY_URL:
+        # The gateway calls resolve_provider() itself server-side (same
+        # function, running inside its own process), which already includes
+        # the fallback logic below -- so delegating here skips local
+        # instantiation and local fallback-wrapping entirely rather than
+        # duplicating it. Vision/images calls aren't supported through the
+        # gateway yet; see GatewayProvider.
+        from .providers.gateway import GatewayProvider
+
+        return GatewayProvider(LLM_GATEWAY_URL, provider_name, model, debug=debug)
 
     cls = providers[provider_name]
     kwargs = {"model": model}
