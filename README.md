@@ -208,8 +208,13 @@ ok = save_to_readwise(
     summary="One sentence summary.",
     tags=["ai", "python"],
     published_date="2026-03-01",
+    tool=my_tool,  # optional — see local_first_common.tracking below; logs the call
 )
 ```
+
+`save_to_readwise`, `list_reader_documents`, `list_reader_refs`, and `archive_reader_document` all accept an optional `tool=` (and `db_path=`) to log the call via `tracked_call` — see `local_first_common.tracking` below. Omitting `tool` is a no-op for logging, unchanged from before.
+
+`local_first_common.social.mastodon.fetch_posts` and `local_first_common.social.bluesky.{get_auth_token,fetch_posts}` take the same optional `tool=`/`db_path=` pair.
 
 ---
 
@@ -257,6 +262,27 @@ with timed_run("my-tool", provider.model, source_location=url) as run:
 ```
 
 DB: `~/sync/local-first/processing_log.duckdb` (override: `LOCAL_FIRST_TRACKING_DB`).
+
+Also tracks URL fetches (`tracked_fetch`, table `fetch_log`) and calls to external
+APIs that aren't URL fetches — Readwise, Mastodon, Bluesky (`tracked_call`, table
+`api_call_log`). `tracked_call` doesn't perform the request itself (those functions
+already own their own retry/backoff), just times and logs it:
+
+```python
+from local_first_common.tracking import register_tool, tracked_call
+
+tool = register_tool("my-tool")
+
+with tracked_call(tool, "readwise", "save") as call:
+    ok = save_to_readwise(token, url)
+    call.success = ok
+```
+
+In practice, pass `tool=` directly to `save_to_readwise`/`list_reader_documents`/etc.
+(see `local_first_common.readwise` and `.social` above) rather than wrapping calls
+yourself — added 2026-09-19 because those functions already caught and swallowed
+their own request failures internally, so nothing about calling Readwise or
+searching social platforms showed up in any log table before this.
 
 ## Workspace Orchestration
 
