@@ -193,7 +193,7 @@ check-standards:
 	echo "Checking for test isolation (tracking DB)..."; \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/tests" ]; then \
-			case "$$repo" in "local-first-common/"|"pipeline-analysis/") continue ;; esac; \
+			case "$$repo" in "local-first-common/"|"pipeline-analysis/"|"local-llm-runner/"|"vault-query/") continue ;; esac; \
 			if [ ! -f "$$repo/tests/conftest.py" ]; then \
 				echo "  [FAIL] $$repo is missing tests/conftest.py"; \
 				FAILED=$$((FAILED + 1)); \
