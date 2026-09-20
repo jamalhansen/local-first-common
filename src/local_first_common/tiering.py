@@ -28,7 +28,7 @@ FAST_TIER_MODELS: dict[str, str] = {
 # Tier 2: High-Reasoning Cloud Tier
 # Target: Deep multi-perspective synthesis, adversarial critique, complex analysis.
 REASONING_TIER_MODELS: dict[str, str] = {
-    "anthropic": "claude-3-7-sonnet-latest",
+    "anthropic": "claude-sonnet-5",
     "gemini": "gemini-2.5-pro",
     "groq": "llama-3.3-70b-versatile",
     "deepseek": "deepseek-reasoner",

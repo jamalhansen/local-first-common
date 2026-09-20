@@ -46,7 +46,7 @@ class DummyWorkingPrimary(BaseProvider):
 
 class DummyFallback(BaseProvider):
     provider_name = "dummy-anthropic"
-    default_model = "claude-3-7-sonnet-latest"
+    default_model = "claude-sonnet-5"
 
     def __init__(self, model=None, debug=False):
         super().__init__(model=model or self.default_model, debug=debug)
@@ -66,7 +66,7 @@ class DummyFallback(BaseProvider):
 def test_get_tier_model():
     assert get_tier_model("fast", "ollama") == "llama3.2:3b"
     assert get_tier_model("classification", "anthropic") == "claude-haiku-4-5-20251001"
-    assert get_tier_model("reasoning", "anthropic") == "claude-3-7-sonnet-latest"
+    assert get_tier_model("reasoning", "anthropic") == "claude-sonnet-5"
     assert get_tier_model("frontier", "gemini") == "gemini-2.5-pro"
     assert get_tier_model("unknown_tier", "anthropic") == "claude-haiku-4-5-20251001"
 
@@ -79,7 +79,7 @@ def test_detect_active_cloud_provider(monkeypatch):
     assert detect_active_cloud_provider() is None
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    assert detect_active_cloud_provider() == ("anthropic", "claude-3-7-sonnet-latest")
+    assert detect_active_cloud_provider() == ("anthropic", "claude-sonnet-5")
 
     monkeypatch.delenv("ANTHROPIC_API_KEY")
     monkeypatch.setenv("GEMINI_API_KEY", "gm-test")
@@ -111,7 +111,7 @@ def test_fallback_provider_failover():
     assert res == "fallback ok"
     assert primary.call_count == 1
     assert fallback.call_count == 1
-    assert provider.model == "claude-3-7-sonnet-latest"
+    assert provider.model == "claude-sonnet-5"
     assert provider.input_tokens == 12
     assert provider.output_tokens == 24
 
@@ -239,5 +239,5 @@ def test_pydantic_ai_tier_build(monkeypatch):
 
     model = build_model("anthropic", tier="reasoning")
     assert hasattr(model, "model_name")
-    assert "claude-3-7-sonnet" in getattr(model, "model_name", "")
+    assert "claude-sonnet-5" in getattr(model, "model_name", "")
 
