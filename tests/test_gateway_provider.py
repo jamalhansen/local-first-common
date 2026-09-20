@@ -174,6 +174,22 @@ class TestResolveProviderGatewayDelegation:
         provider = resolve_provider(provider_name="mock")
         assert not isinstance(provider, GatewayProvider)
 
+    def test_use_gateway_false_bypasses_gateway_routing_even_with_url_set(self, monkeypatch):
+        """Regression for the 2026-09-20 incident: llm-gateway-service's own
+        internal resolve_provider() call inherits LLM_GATEWAY_URL from the
+        same shell env as every other tool. Without use_gateway=False, that
+        call would build a GatewayProvider pointed at the gateway itself --
+        every request it served would recurse into another HTTP call to
+        itself, unbounded, until the process ran out of file descriptors."""
+        from local_first_common.testing import MockProvider
+
+        with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
+            provider = resolve_provider(
+                {"ollama": MockProvider}, provider_name="ollama", use_gateway=False, fallback=False
+            )
+        assert not isinstance(provider, GatewayProvider)
+        assert isinstance(provider, MockProvider)
+
     def test_gateway_url_set_returns_gateway_provider(self, monkeypatch):
         with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
             provider = resolve_provider(provider_name="anthropic", model="claude-haiku")

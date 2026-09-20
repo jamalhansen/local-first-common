@@ -142,12 +142,24 @@ def resolve_provider(
     fallback_provider: str | None = None,
     fallback_model: str | None = None,
     tool_name: str | None = None,
+    use_gateway: bool = True,
 ):
     """Instantiate the named provider, with validation, helpful error on unknown name,
     and automatic local-to-cloud failover when Ollama is unavailable.
 
     tool_name, if given, attributes a failed primary-provider attempt to that
     tool in processing_log when a fallback fires -- see FallbackProvider.
+
+    use_gateway=False forces real, direct provider instantiation even when
+    LLM_GATEWAY_URL is set -- required by llm-gateway-service's OWN internal
+    call (it inherits LLM_GATEWAY_URL from the same shell env as everything
+    else). Found live 2026-09-20: without this, the gateway's own resolve_provider()
+    call took the gateway branch and built a GatewayProvider pointed at
+    itself -- every request the gateway received for the same target_provider
+    recursed into another HTTP call to itself, unbounded, until the process
+    ran out of file descriptors. use_gateway=False still gets real fallback
+    protection (FallbackProvider wrapping real provider instances, not a
+    self-referential proxy) via the direct-instantiation branch below.
     """
     if providers is None:
         from .providers import PROVIDERS
@@ -172,7 +184,7 @@ def resolve_provider(
             f"Unknown provider '{provider_name}'. Valid options: {valid}"
         )
 
-    if LLM_GATEWAY_URL:
+    if LLM_GATEWAY_URL and use_gateway:
         # The gateway calls resolve_provider() itself server-side (same
         # function, running inside its own process) for CONNECTIVITY
         # fallback (Ollama down/unreachable) -- but the gateway never parses
