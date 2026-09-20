@@ -50,6 +50,7 @@ def _extract_text(message: Any) -> str:
 
 
 class AnthropicProvider(BaseProvider):
+    provider_name = "anthropic"
     default_model = "claude-haiku-4-5-20251001"
     known_models: ClassVar[list[str]] = [
         "claude-opus-5",

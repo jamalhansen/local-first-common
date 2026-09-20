@@ -171,6 +171,7 @@ class TestLogRun:
         assert row["duration_seconds"] is None
         assert row["xml_fallbacks"] is None
         assert row["parse_errors"] is None
+        assert row["provider"] is None
 
     def test_xml_fallbacks_stored(self, tmp_path):
         db = tmp_path / "test.duckdb"
@@ -183,6 +184,21 @@ class TestLogRun:
         log_run("tool", "model", parse_errors=2, db_path=db)
         row = _last_row(db)
         assert row["parse_errors"] == 2
+
+    def test_provider_stored(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        log_run("tool", "phi4-mini", provider="ollama", db_path=db)
+        row = _last_row(db)
+        assert row["provider"] == "ollama"
+
+    def test_non_string_provider_coerced_to_str(self, tmp_path):
+        """Guards against MagicMock leaking into the DB, same as model already does."""
+        from unittest.mock import MagicMock
+
+        db = tmp_path / "test.duckdb"
+        log_run("tool", "model", provider=MagicMock(name="provider"), db_path=db)
+        row = _last_row(db)
+        assert isinstance(row["provider"], str)
 
     def test_item_count_stored(self, tmp_path):
         db = tmp_path / "test.duckdb"

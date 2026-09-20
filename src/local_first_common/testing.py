@@ -35,6 +35,7 @@ _AUTO = object()
 class MockProvider(BaseProvider):
     """A deterministic provider for use in tests. Records calls and returns preset responses."""
 
+    provider_name = "mock"
     default_model = "mock"
     known_models: ClassVar[list] = ["mock"]
     models_url = "https://example.com"

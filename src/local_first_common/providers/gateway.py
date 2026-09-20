@@ -57,6 +57,10 @@ class GatewayProvider(BaseProvider):
         self.input_tokens: int | None = None
         self.output_tokens: int | None = None
 
+    @property
+    def provider_name(self) -> str:
+        return self.target_provider
+
     def _headers(self) -> dict[str, str]:
         headers = {}
         api_key = os.environ.get("LLM_GATEWAY_API_KEY")

@@ -50,6 +50,15 @@ class TestProvidersDict:
         assert provider.__class__.__name__ == "MockProvider"
         assert provider.model == "mock"
 
+    def test_each_provider_class_provider_name_matches_its_registry_key(self):
+        """provider_name is what gets passed to tracking.log_run(provider=...)
+        -- must match PROVIDERS' own keys or processing_log and the dispatch
+        table would disagree about what a provider is called."""
+        for name, cls in PROVIDERS.items():
+            if name == "local":
+                continue  # deliberate alias for OllamaProvider, whose real provider_name is "ollama"
+            assert cls.provider_name == name
+
 
 class TestBaseProvider:
     def test_cannot_instantiate_directly(self):

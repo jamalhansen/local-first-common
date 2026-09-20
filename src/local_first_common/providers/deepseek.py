@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class DeepSeekProvider(BaseProvider):
+    provider_name = "deepseek"
     default_model = "deepseek-chat"
     known_models: ClassVar[list[str]] = [
         "deepseek-chat",

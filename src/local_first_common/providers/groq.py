@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class GroqProvider(BaseProvider):
+    provider_name = "groq"
     default_model = "llama-3.3-70b-versatile"
     known_models: ClassVar[list[str]] = [
         "llama-3.3-70b-versatile",

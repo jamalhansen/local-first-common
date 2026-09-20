@@ -14,6 +14,12 @@ class BaseProvider(ABC):
     default_model: str
     known_models: list
     models_url: str
+    # Canonical lowercase name matching local_first_common.providers.PROVIDERS'
+    # keys -- for tracking.timed_run(..., provider=llm.provider_name), so
+    # processing_log can record which provider actually ran, not just which
+    # model. GatewayProvider/FallbackProvider override this as a property
+    # since their real provider isn't known until construction/call time.
+    provider_name: str
 
     def __init__(
         self,

@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS processing_log (
     id               BIGINT  DEFAULT nextval('processing_log_id_seq') PRIMARY KEY,
     tool_name        VARCHAR NOT NULL,
     model            VARCHAR,
+    provider         VARCHAR,
     source_location  VARCHAR,
     item_count       INTEGER,
     input_tokens     INTEGER,
@@ -163,9 +164,9 @@ CREATE TABLE IF NOT EXISTS processing_log (
 
 _INSERT = """
 INSERT INTO processing_log
-    (tool_name, model, source_location, item_count, input_tokens, output_tokens,
+    (tool_name, model, provider, source_location, item_count, input_tokens, output_tokens,
      duration_seconds, success, error_message, xml_fallbacks, parse_errors)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 # ── tools + fetch_log (URL fetches) ─────────────────────────────────────────
@@ -280,6 +281,13 @@ def _ensure_schema(conn) -> None:
     conn.execute(
         "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS parse_errors INTEGER;"
     )
+    # Migrate existing DBs that predate the provider column (2026-09-20).
+    # NULL for every row logged before this and for any caller that doesn't
+    # pass provider= -- not every tool call site has been updated to pass it,
+    # only the ones that already know their provider for free (the gateway).
+    conn.execute(
+        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS provider VARCHAR;"
+    )
     conn.execute(_CREATE_TOOLS_SEQUENCE)
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
@@ -369,6 +377,7 @@ def log_run(
     tool_name: str,
     model: str | None,
     *,
+    provider: str | None = None,
     source_location: str | None = None,
     item_count: int | None = None,
     input_tokens: int | None = None,
@@ -384,6 +393,8 @@ def log_run(
     # Coerce model to str or None — guards against MagicMock in tests
     if model is not None and not isinstance(model, str):
         model = str(model)
+    if provider is not None and not isinstance(provider, str):
+        provider = str(provider)
 
     def _to_int_or_none(val: object | None) -> int | None:
         if val is None or isinstance(val, bool):
@@ -419,6 +430,7 @@ def log_run(
     payload = [
         tool_name,
         model,
+        provider,
         _to_str_or_none(source_location),
         _to_int_or_none(item_count),
         _to_int_or_none(input_tokens),
@@ -466,6 +478,7 @@ def timed_run(
     model: str | None,
     source_location: str | None = None,
     db_path: str | Path | None = None,
+    provider: str | None = None,
 ) -> "_TimedRun":
     """Context manager that times a block and logs success/failure automatically.
 
@@ -474,8 +487,14 @@ def timed_run(
         with timed_run("my-tool", llm.model, source_location=url) as run:
             results = process_batch(items)
             run.item_count = len(results)
+
+    Pass ``provider=`` when the caller already knows it for free (e.g.
+    llm-gateway-service already resolves and returns it) -- most call sites
+    don't have this, and it's fine to leave it unset (NULL). ``run.provider``
+    can also be set inside the block, same as ``item_count``, for a caller
+    that only learns it partway through (e.g. after a fallback fires).
     """
-    return _TimedRun(tool_name, model, source_location, db_path)
+    return _TimedRun(tool_name, model, source_location, db_path, provider)
 
 
 def track_llm_run(
@@ -483,6 +502,7 @@ def track_llm_run(
     model: str | None,
     source_location: str | None = None,
     db_path: str | Path | None = None,
+    provider: str | None = None,
 ) -> "_TrackedRun":
     """Improved context manager that can automatically extract token counts from results.
 
@@ -492,14 +512,14 @@ def track_llm_run(
             result = provider.complete(system, user)
             run.track(result)
     """
-    return _TrackedRun(tool_name, model, source_location, db_path)
+    return _TrackedRun(tool_name, model, source_location, db_path, provider)
 
 
 class _TrackedRun:
     """Helper that extends _TimedRun with automatic metadata extraction."""
 
-    def __init__(self, tool_name, model, source_location, db_path):
-        self._run = _TimedRun(tool_name, model, source_location, db_path)
+    def __init__(self, tool_name, model, source_location, db_path, provider=None):
+        self._run = _TimedRun(tool_name, model, source_location, db_path, provider)
 
     def __enter__(self) -> Self:
         self._run.__enter__()
@@ -515,6 +535,14 @@ class _TrackedRun:
     @item_count.setter
     def item_count(self, value: int | None):
         self._run.item_count = value
+
+    @property
+    def provider(self) -> str | None:
+        return self._run.provider
+
+    @provider.setter
+    def provider(self, value: str | None):
+        self._run.provider = value
 
     def track(self, result: any, item_count: int | None = None):
         """Extract metadata (tokens, etc.) from a result object.
@@ -556,9 +584,10 @@ class _TrackedRun:
 
 
 class _TimedRun:
-    def __init__(self, tool_name, model, source_location, db_path):
+    def __init__(self, tool_name, model, source_location, db_path, provider=None):
         self.tool_name = tool_name
         self.model = model
+        self.provider = provider
         self.source_location = source_location
         self.db_path = db_path
         self.item_count: int | None = None
@@ -578,6 +607,7 @@ class _TimedRun:
             log_run(
                 self.tool_name,
                 self.model,
+                provider=self.provider,
                 source_location=self.source_location,
                 item_count=self.item_count,
                 input_tokens=self.input_tokens,

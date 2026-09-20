@@ -60,6 +60,7 @@ class FallbackProvider(BaseProvider):
             log_run(
                 self.tool_name or f"{self.primary.__class__.__name__}(unattributed)",
                 self.primary.model,
+                provider=getattr(self.primary, "provider_name", None),
                 success=False,
                 error_message=f"fallback triggered: {exc}"[:500],
             )
@@ -73,6 +74,10 @@ class FallbackProvider(BaseProvider):
     @model.setter
     def model(self, value: str) -> None:
         self.primary.model = value
+
+    @property
+    def provider_name(self) -> str:
+        return self._active.provider_name
 
     @property
     def input_tokens(self) -> int | None:

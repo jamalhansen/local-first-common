@@ -14,6 +14,7 @@ from local_first_common.tiering import (
 
 
 class DummyPrimary(BaseProvider):
+    provider_name = "dummy-ollama"
     default_model = "llama3.2:3b"
 
     def __init__(self, model=None, debug=False):
@@ -30,6 +31,7 @@ class DummyPrimary(BaseProvider):
 
 
 class DummyWorkingPrimary(BaseProvider):
+    provider_name = "dummy-ollama"
     default_model = "llama3.2:3b"
 
     def __init__(self, model=None, debug=False):
@@ -43,6 +45,7 @@ class DummyWorkingPrimary(BaseProvider):
 
 
 class DummyFallback(BaseProvider):
+    provider_name = "dummy-anthropic"
     default_model = "claude-3-7-sonnet-latest"
 
     def __init__(self, model=None, debug=False):
@@ -173,13 +176,24 @@ def test_fallback_provider_logs_primary_failure_for_diagnosis(tmp_path, monkeypa
 
     conn = duckdb.connect(str(db))
     row = conn.execute(
-        "SELECT tool_name, model, success, error_message FROM processing_log ORDER BY id DESC LIMIT 1"
+        "SELECT tool_name, model, provider, success, error_message FROM processing_log ORDER BY id DESC LIMIT 1"
     ).fetchone()
     conn.close()
     assert row[0] == "my-tool"
     assert row[1] == "llama3.2:3b"  # the failed primary's model, not the fallback's
-    assert row[2] is False
-    assert "fallback triggered" in row[3]
+    assert row[2] == "dummy-ollama"  # the failed primary's provider, not the fallback's
+    assert row[3] is False
+    assert "fallback triggered" in row[4]
+
+
+def test_fallback_provider_name_delegates_to_whichever_leg_actually_ran():
+    primary = DummyPrimary()
+    fallback = DummyFallback()
+    provider = FallbackProvider(primary, fallback)
+    assert provider.provider_name == "dummy-ollama"  # nothing has run yet -- starts on primary
+
+    provider.complete("sys", "user")  # primary always fails in this fixture -> fails over
+    assert provider.provider_name == "dummy-anthropic"
 
 
 def test_fallback_provider_without_tool_name_still_logs_attributed_to_class(tmp_path, monkeypatch):

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class OllamaProvider(BaseProvider):
+    provider_name = "ollama"
     default_model = "phi4-mini"
     known_models: ClassVar[list[str]] = []  # fetched dynamically from /api/tags
     models_url = "http://localhost:11434"

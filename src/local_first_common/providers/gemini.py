@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiProvider(BaseProvider):
+    provider_name = "gemini"
     default_model = "gemini-2.0-flash"
     known_models: ClassVar[list[str]] = [
         "gemini-2.0-flash",

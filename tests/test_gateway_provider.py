@@ -24,6 +24,12 @@ class _FakeResponse:
         return self._json_body
 
 
+class TestGatewayProviderProviderName:
+    def test_provider_name_reflects_target_provider(self):
+        provider = GatewayProvider("http://127.0.0.1:8788", "anthropic")
+        assert provider.provider_name == "anthropic"
+
+
 class TestGatewayProviderComplete:
     def test_returns_plain_text_when_no_response_model(self):
         response = _FakeResponse(200, {"text": "a real answer", "input_tokens": 10, "output_tokens": 3})
