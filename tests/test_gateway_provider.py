@@ -190,3 +190,34 @@ class TestResolveProviderGatewayDelegation:
         with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
             provider = resolve_provider(no_llm=True)
         assert isinstance(provider, MockProvider)
+
+    def test_gateway_url_set_with_fallback_wraps_two_gateway_providers(self):
+        """Found live 2026-09-20: routing through the gateway used to skip
+        client-side fallback-wrapping entirely (the gateway's own server-side
+        fallback only catches connectivity, not a malformed-JSON response,
+        since the gateway never parses the schema) -- every gateway-routed
+        tool had zero protection against that failure mode. Both legs should
+        still go through the gateway (same auth/logging), just as two
+        different target_provider values."""
+        from local_first_common.providers.fallback import FallbackProvider
+
+        with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
+            provider = resolve_provider(
+                provider_name="ollama", fallback=True, fallback_provider="deepseek", tool_name="my-tool"
+            )
+        assert isinstance(provider, FallbackProvider)
+        assert isinstance(provider.primary, GatewayProvider)
+        assert provider.primary.target_provider == "ollama"
+        assert isinstance(provider.fallback, GatewayProvider)
+        assert provider.fallback.target_provider == "deepseek"
+        assert provider.tool_name == "my-tool"
+
+    def test_gateway_url_set_non_ollama_provider_skips_fallback_wrapping(self):
+        """Fallback is an ollama/local-only concept (there's nothing to fail
+        over *from* for a cloud provider) -- confirms that path is untouched."""
+        from local_first_common.providers.fallback import FallbackProvider
+
+        with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
+            provider = resolve_provider(provider_name="anthropic", fallback=True, fallback_provider="deepseek")
+        assert isinstance(provider, GatewayProvider)
+        assert not isinstance(provider, FallbackProvider)

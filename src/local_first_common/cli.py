@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Opt-in delegation to llm-gateway-service instead of instantiating a
 # provider's own SDK client in-process. Unset by default -- see
 # providers/gateway.py's GatewayProvider for what this does and doesn't
-# support (no images/vision yet).
+# support.
 LLM_GATEWAY_URL = os.environ.get("LLM_GATEWAY_URL") or None
 
 app = typer.Typer(name="local-first", help="Local-first AI tools management.")
@@ -141,9 +141,14 @@ def resolve_provider(
     fallback: bool = True,
     fallback_provider: str | None = None,
     fallback_model: str | None = None,
+    tool_name: str | None = None,
 ):
     """Instantiate the named provider, with validation, helpful error on unknown name,
-    and automatic local-to-cloud failover when Ollama is unavailable."""
+    and automatic local-to-cloud failover when Ollama is unavailable.
+
+    tool_name, if given, attributes a failed primary-provider attempt to that
+    tool in processing_log when a fallback fires -- see FallbackProvider.
+    """
     if providers is None:
         from .providers import PROVIDERS
 
@@ -169,14 +174,31 @@ def resolve_provider(
 
     if LLM_GATEWAY_URL:
         # The gateway calls resolve_provider() itself server-side (same
-        # function, running inside its own process), which already includes
-        # the fallback logic below -- so delegating here skips local
-        # instantiation and local fallback-wrapping entirely rather than
-        # duplicating it. Vision/images calls aren't supported through the
-        # gateway yet; see GatewayProvider.
+        # function, running inside its own process) for CONNECTIVITY
+        # fallback (Ollama down/unreachable) -- but the gateway never parses
+        # or validates the response against a schema (schema-awareness stays
+        # entirely client-side, see GatewayProvider), so it can't catch "the
+        # model responded with malformed JSON" the way a direct FallbackProvider
+        # can. Wire real client-side fallback here too when requested, using
+        # a second GatewayProvider (same target_provider mechanism, just a
+        # different provider name) rather than instantiating a real SDK
+        # client -- keeps both legs going through the gateway's auth/logging.
         from .providers.gateway import GatewayProvider
 
-        return GatewayProvider(LLM_GATEWAY_URL, provider_name, model, debug=debug)
+        primary = GatewayProvider(LLM_GATEWAY_URL, provider_name, model, debug=debug)
+
+        if fallback and provider_name in ("ollama", "local"):
+            from .providers.fallback import FallbackProvider
+            from .tiering import resolve_fallback_target
+
+            target = resolve_fallback_target(fallback_provider, fallback_model)
+            if target:
+                fb_prov_name, fb_model_name = target
+                if fb_prov_name in providers and fb_prov_name not in ("ollama", "local"):
+                    fb_instance = GatewayProvider(LLM_GATEWAY_URL, fb_prov_name, fb_model_name, debug=debug)
+                    return FallbackProvider(primary, fb_instance, debug=debug, tool_name=tool_name)
+
+        return primary
 
     cls = providers[provider_name]
     kwargs = {"model": model}
@@ -204,7 +226,7 @@ def resolve_provider(
                         fb_instance = fb_cls(**fb_kwargs)
                     except TypeError:
                         fb_instance = fb_cls(model=fb_model_name)
-                    return FallbackProvider(primary, fb_instance, debug=debug)
+                    return FallbackProvider(primary, fb_instance, debug=debug, tool_name=tool_name)
                 except Exception as e:  # noqa: BLE001 - fallback setup is opportunistic; any failure here should just leave the primary provider in place
                     logger.debug("Fallback provider setup failed, using primary only: %s", e)
 

@@ -125,6 +125,78 @@ def test_fallback_provider_async_failover():
     assert fallback.call_count == 1
 
 
+class DummyBadJson(BaseProvider):
+    """A model that responds, but with something that doesn't parse as the
+    requested schema -- the real 2026-09-20 phi4-mini failure mode, distinct
+    from a connectivity failure."""
+
+    default_model = "phi4-mini"
+
+    def __init__(self, model=None, debug=False):
+        super().__init__(model=model or self.default_model, debug=debug)
+        self.call_count = 0
+
+    def _complete(self, system, user, response_model=None, images=None):
+        self.call_count += 1
+        import json
+
+        json.loads("not valid json")
+
+    async def _acomplete(self, system, user, response_model=None, images=None):
+        self.call_count += 1
+        import json
+
+        json.loads("not valid json")
+
+
+def test_fallback_provider_fails_over_on_bad_json():
+    primary = DummyBadJson()
+    fallback = DummyFallback()
+    provider = FallbackProvider(primary, fallback)
+
+    res = provider.complete("sys", "user")
+    assert res == "fallback ok"
+    assert primary.call_count == 1
+    assert fallback.call_count == 1
+
+
+def test_fallback_provider_logs_primary_failure_for_diagnosis(tmp_path, monkeypatch):
+    db = tmp_path / "test.duckdb"
+    monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db))
+
+    primary = DummyPrimary()
+    fallback = DummyFallback()
+    provider = FallbackProvider(primary, fallback, tool_name="my-tool")
+    provider.complete("sys", "user")
+
+    import duckdb
+
+    conn = duckdb.connect(str(db))
+    row = conn.execute(
+        "SELECT tool_name, model, success, error_message FROM processing_log ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert row[0] == "my-tool"
+    assert row[1] == "llama3.2:3b"  # the failed primary's model, not the fallback's
+    assert row[2] is False
+    assert "fallback triggered" in row[3]
+
+
+def test_fallback_provider_without_tool_name_still_logs_attributed_to_class(tmp_path, monkeypatch):
+    db = tmp_path / "test.duckdb"
+    monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db))
+
+    provider = FallbackProvider(DummyPrimary(), DummyFallback())
+    provider.complete("sys", "user")
+
+    import duckdb
+
+    conn = duckdb.connect(str(db))
+    row = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    assert "DummyPrimary" in row[0]
+
+
 def test_resolve_provider_wires_fallback(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     mock_providers = {
