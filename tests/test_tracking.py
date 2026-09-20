@@ -480,6 +480,20 @@ class TestTrackedFetch:
         assert row["http_status"] is None
         assert row["title"] == "Example Article"
         assert row["duration_ms"] >= 0
+        assert row["method"] == "http"
+
+    def test_failed_fetch_logs_method_error(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with patch(
+            "local_first_common.http.fetch_url", side_effect=RuntimeError("boom")
+        ), tracked_fetch(tool, "https://example.com/article", db_path=db):
+            pass
+
+        row = _last_row(db, table="fetch_log")
+        assert row["success"] is False
+        assert row["method"] == "error"
 
     def test_http_error_logged(self, tmp_path):
         db = tmp_path / "test.duckdb"

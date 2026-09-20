@@ -196,7 +196,10 @@ CREATE TABLE IF NOT EXISTS fetch_log (
     http_status     INTEGER,
     error_message   VARCHAR,
     duration_ms     INTEGER,
-    title           VARCHAR        -- populated by caller after HTML parsing
+    title           VARCHAR,       -- populated by caller after HTML parsing
+    method          VARCHAR,       -- 'http' | 'playwright' | 'blocked' | 'error' -- which fetch path was actually used
+    content_length  INTEGER,       -- extracted body length, for judging extraction quality after the fact
+    quality         VARCHAR        -- 'ok' | 'thin' | 'empty' -- see http-retriever-service's extract.ts assessQuality()
 );
 """
 
@@ -206,8 +209,9 @@ _SELECT_TOOL_ID = "SELECT id FROM tools WHERE name = ?;"
 _INSERT_FETCH = """
 INSERT INTO fetch_log
     (tool_id, url, domain, source_url, source_platform,
-     success, http_status, error_message, duration_ms, title)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+     success, http_status, error_message, duration_ms, title,
+     method, content_length, quality)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 # ── api_call_log (non-fetch external API calls: Readwise, Mastodon, Bluesky) ─
@@ -292,6 +296,14 @@ def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
     conn.execute(_CREATE_FETCH_LOG_TABLE)
+    # Migrate existing DBs that predate the method/content_length/quality
+    # columns (2026-09-20) -- the JSONL log http-retriever-service writes
+    # already captured which fetch method was used, but it was being
+    # discarded (only used to derive `success`) before reaching this shared
+    # table. NULL for every row logged before this.
+    conn.execute("ALTER TABLE fetch_log ADD COLUMN IF NOT EXISTS method VARCHAR;")
+    conn.execute("ALTER TABLE fetch_log ADD COLUMN IF NOT EXISTS content_length INTEGER;")
+    conn.execute("ALTER TABLE fetch_log ADD COLUMN IF NOT EXISTS quality VARCHAR;")
     conn.execute(_CREATE_API_CALL_SEQUENCE)
     conn.execute(_CREATE_API_CALL_TABLE)
 
@@ -776,6 +788,9 @@ class _FetchContext:
                         self.error_message,
                         duration_ms,
                         self.title,
+                        "http" if self.success else "error",
+                        None,  # this path fetches raw HTML, not extracted article text -- content_length/quality don't apply the way they do for http-retriever-service's extracted body
+                        None,
                     ],
                 )
                 write_ok = True
