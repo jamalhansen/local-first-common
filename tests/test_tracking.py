@@ -17,6 +17,7 @@ from local_first_common.tracking import (
     log_run,
     register_tool,
     timed_run,
+    tracked_call,
     tracked_fetch,
 )
 
@@ -538,4 +539,66 @@ class TestTrackedFetch:
         assert row["tool_name"] == "mock-tool"
         assert row["input_tokens"] is None
         assert row["output_tokens"] is None
+
+
+# ---------------------------------------------------------------------------
+# tracked_call context manager
+# ---------------------------------------------------------------------------
+
+
+class TestTrackedCall:
+    def test_successful_call_logged(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with tracked_call(tool, "readwise", "save", db_path=db) as call:
+            call.success = True
+            call.http_status = 201
+            call.item_count = 1
+
+        row = _last_row(db, table="api_call_log")
+        assert row["tool_id"] == tool.id
+        assert row["service"] == "readwise"
+        assert row["operation"] == "save"
+        assert row["success"] is True
+        assert row["http_status"] == 201
+        assert row["item_count"] == 1
+        assert row["duration_ms"] >= 0
+
+    def test_default_success_is_false(self, tmp_path):
+        """A block that never sets call.success logs a failed row -- callers must opt in."""
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with tracked_call(tool, "mastodon", "fetch_posts", db_path=db):
+            pass
+
+        row = _last_row(db, table="api_call_log")
+        assert row["success"] is False
+
+    def test_exception_in_block_logged_as_failure_and_reraised(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+
+        with pytest.raises(ValueError), tracked_call(tool, "bluesky", "auth", db_path=db) as call:
+            call.success = True  # would-be success, overridden by the exception
+            raise ValueError("boom")
+
+        row = _last_row(db, table="api_call_log")
+        assert row["success"] is False
+        assert "boom" in row["error_message"]
+
+    def test_none_tool_skips_logging_silently(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with tracked_call(None, "readwise", "save", db_path=db) as call:
+            call.success = True
+        # No tools table row exists, so nothing to query -- just confirm no crash.
+        assert call.success is True
+
+    def test_unregistered_tool_id_skips_logging_silently(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        tool = Tool(name="never-registered", id=None)
+        with tracked_call(tool, "readwise", "save", db_path=db) as call:
+            call.success = True
+        assert call.success is True
 

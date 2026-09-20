@@ -7,10 +7,12 @@ the official API. API docs: https://readwise.io/reader_api
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import requests
 
 from local_first_common.article_fetcher import FeedItem
+from local_first_common.tracking import Tool, tracked_call
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,8 @@ def save_to_readwise(
     search_term: str | None = None,
     platform: str | None = None,
     location: str | None = None,
+    tool: Tool | None = None,
+    db_path: str | Path | None = None,
 ) -> bool:
     """Save a URL to the Readwise Reader inbox.
 
@@ -82,6 +86,8 @@ def save_to_readwise(
                          caller already treats as the actionable copy, so it
                          doesn't sit as a second unread item competing for
                          attention.
+        tool:           Registered ``Tool`` (via ``register_tool()``) to log this
+                         call under in ``api_call_log``. Optional — omit for no logging.
 
     Returns:
         True on success (HTTP 200 or 201), False on any error.
@@ -109,23 +115,28 @@ def save_to_readwise(
     if location:
         payload["location"] = location
 
-    try:
-        resp = requests.post(
-            _SAVE_URL,
-            json=payload,
-            headers={"Authorization": f"Token {token}"},
-            timeout=10,
-        )
-        if resp.status_code in (200, 201):
-            return True
-        logger.warning(
-            "Readwise API returned %s for %s: %s",
-            resp.status_code, url, resp.text[:200],
-        )
-        return False
-    except requests.RequestException as e:
-        logger.warning("Failed to save %s to Readwise: %s", url, e)
-        return False
+    with tracked_call(tool, "readwise", "save", db_path=db_path) as call:
+        try:
+            resp = requests.post(
+                _SAVE_URL,
+                json=payload,
+                headers={"Authorization": f"Token {token}"},
+                timeout=10,
+            )
+            call.http_status = resp.status_code
+            if resp.status_code in (200, 201):
+                call.success = True
+                return True
+            call.error_message = resp.text[:200]
+            logger.warning(
+                "Readwise API returned %s for %s: %s",
+                resp.status_code, url, resp.text[:200],
+            )
+            return False
+        except requests.RequestException as e:
+            call.error_message = str(e)
+            logger.warning("Failed to save %s to Readwise: %s", url, e)
+            return False
 
 
 def _document_to_feed_item(doc: dict) -> FeedItem:
@@ -153,6 +164,8 @@ def list_reader_documents(
     updated_after: str | None = None,
     tag: str | None = None,
     limit: int = 100,
+    tool: Tool | None = None,
+    db_path: str | Path | None = None,
 ) -> list[FeedItem]:
     """Fetch documents from the Readwise Reader library, paginating through all results.
 
@@ -170,6 +183,8 @@ def list_reader_documents(
         limit:         Page size sent to the API (1-100). Pagination is handled
                         internally regardless of this value; it only affects how
                         many requests are made.
+        tool:          Registered ``Tool`` (via ``register_tool()``) to log this
+                        call under in ``api_call_log``. Optional — omit for no logging.
 
     Returns:
         A flat list of FeedItem, across all pages. Stops and returns whatever was
@@ -187,43 +202,52 @@ def list_reader_documents(
     items: list[FeedItem] = []
     cursor: str | None = None
 
-    while True:
-        params: dict = {"limit": limit}
-        if location is not None:
-            params["location"] = location
-        if category is not None:
-            params["category"] = category
-        if updated_after is not None:
-            params["updatedAfter"] = updated_after
-        if tag is not None:
-            params["tag"] = tag
-        if cursor is not None:
-            params["pageCursor"] = cursor
+    with tracked_call(tool, "readwise", "list", db_path=db_path) as call:
+        call.success = True
+        while True:
+            params: dict = {"limit": limit}
+            if location is not None:
+                params["location"] = location
+            if category is not None:
+                params["category"] = category
+            if updated_after is not None:
+                params["updatedAfter"] = updated_after
+            if tag is not None:
+                params["tag"] = tag
+            if cursor is not None:
+                params["pageCursor"] = cursor
 
-        try:
-            resp = requests.get(
-                _LIST_URL,
-                params=params,
-                headers={"Authorization": f"Token {token}"},
-                timeout=10,
-            )
-        except requests.RequestException as e:
-            logger.warning("Failed to list Reader documents: %s", e)
-            break
+            try:
+                resp = requests.get(
+                    _LIST_URL,
+                    params=params,
+                    headers={"Authorization": f"Token {token}"},
+                    timeout=10,
+                )
+            except requests.RequestException as e:
+                logger.warning("Failed to list Reader documents: %s", e)
+                call.success = False
+                call.error_message = str(e)
+                break
 
-        if resp.status_code != 200:
-            logger.warning(
-                "Readwise API returned %s listing documents: %s",
-                resp.status_code, resp.text[:200],
-            )
-            break
+            call.http_status = resp.status_code
+            if resp.status_code != 200:
+                logger.warning(
+                    "Readwise API returned %s listing documents: %s",
+                    resp.status_code, resp.text[:200],
+                )
+                call.success = False
+                call.error_message = resp.text[:200]
+                break
 
-        data = resp.json()
-        items.extend(_document_to_feed_item(doc) for doc in data.get("results", []))
+            data = resp.json()
+            items.extend(_document_to_feed_item(doc) for doc in data.get("results", []))
 
-        cursor = data.get("nextPageCursor")
-        if not cursor:
-            break
+            cursor = data.get("nextPageCursor")
+            if not cursor:
+                break
+
+        call.item_count = len(items)
 
     return items
 
@@ -233,6 +257,8 @@ def list_reader_refs(
     *,
     location: str | None = "new",
     category: str | None = None,
+    tool: Tool | None = None,
+    db_path: str | Path | None = None,
 ) -> list[ReaderRef]:
     """List Reader documents as updatable references (id, source_url, location).
 
@@ -240,6 +266,9 @@ def list_reader_refs(
     location, which is what an archive or reconcile pass needs. Documents without
     a ``source_url`` (Reader notes, highlights) are skipped: there is nothing to
     match them against.
+
+    ``tool``: registered ``Tool`` (via ``register_tool()``) to log this call under
+    in ``api_call_log``. Optional — omit for no logging.
     """
     if not token:
         logger.error("Readwise token is not set — cannot list Reader documents")
@@ -248,69 +277,88 @@ def list_reader_refs(
     refs: list[ReaderRef] = []
     cursor: str | None = None
 
-    while True:
-        params: dict = {}
-        if location is not None:
-            params["location"] = location
-        if category is not None:
-            params["category"] = category
-        if cursor is not None:
-            params["pageCursor"] = cursor
+    with tracked_call(tool, "readwise", "list_refs", db_path=db_path) as call:
+        call.success = True
+        while True:
+            params: dict = {}
+            if location is not None:
+                params["location"] = location
+            if category is not None:
+                params["category"] = category
+            if cursor is not None:
+                params["pageCursor"] = cursor
 
-        for _ in range(_MAX_RETRIES):
-            try:
-                resp = requests.get(
-                    _LIST_URL,
-                    params=params,
-                    headers={"Authorization": f"Token {token}"},
-                    timeout=30,
-                )
-            except requests.RequestException as e:
-                logger.warning("Failed to list Reader documents: %s", e)
+            for _ in range(_MAX_RETRIES):
+                try:
+                    resp = requests.get(
+                        _LIST_URL,
+                        params=params,
+                        headers={"Authorization": f"Token {token}"},
+                        timeout=30,
+                    )
+                except requests.RequestException as e:
+                    logger.warning("Failed to list Reader documents: %s", e)
+                    call.success = False
+                    call.error_message = str(e)
+                    call.item_count = len(refs)
+                    return refs
+
+                if resp.status_code == 429:
+                    _sleep_for_retry(resp)
+                    continue
+                break
+            else:
+                logger.warning("Gave up listing Reader documents after repeated rate limiting")
+                call.success = False
+                call.error_message = "gave up after repeated rate limiting"
+                call.item_count = len(refs)
                 return refs
 
-            if resp.status_code == 429:
-                _sleep_for_retry(resp)
-                continue
-            break
-        else:
-            logger.warning("Gave up listing Reader documents after repeated rate limiting")
-            return refs
-
-        if resp.status_code != 200:
-            logger.warning(
-                "Readwise API returned %s listing documents: %s",
-                resp.status_code, resp.text[:200],
-            )
-            return refs
-
-        data = resp.json()
-        for doc in data.get("results", []):
-            source_url = doc.get("source_url") or ""
-            if not source_url:
-                continue
-            refs.append(
-                ReaderRef(
-                    doc_id=doc.get("id") or "",
-                    source_url=source_url,
-                    title=doc.get("title") or "",
-                    location=doc.get("location") or "",
+            call.http_status = resp.status_code
+            if resp.status_code != 200:
+                logger.warning(
+                    "Readwise API returned %s listing documents: %s",
+                    resp.status_code, resp.text[:200],
                 )
-            )
+                call.success = False
+                call.error_message = resp.text[:200]
+                call.item_count = len(refs)
+                return refs
 
-        cursor = data.get("nextPageCursor")
-        if not cursor:
-            break
+            data = resp.json()
+            for doc in data.get("results", []):
+                source_url = doc.get("source_url") or ""
+                if not source_url:
+                    continue
+                refs.append(
+                    ReaderRef(
+                        doc_id=doc.get("id") or "",
+                        source_url=source_url,
+                        title=doc.get("title") or "",
+                        location=doc.get("location") or "",
+                    )
+                )
+
+            cursor = data.get("nextPageCursor")
+            if not cursor:
+                break
+
+        call.item_count = len(refs)
 
     return refs
 
 
-def archive_reader_document(token: str, doc_id: str) -> bool:
+def archive_reader_document(
+    token: str, doc_id: str, tool: Tool | None = None, db_path: str | Path | None = None
+) -> bool:
     """Move a Reader document to the archive location.
 
     Returns True on success, False on any error. Retries on 429 rather than
     failing, because the caller is normally archiving a backlog in a loop and a
     dropped item would silently stay in the queue.
+
+    ``tool``: registered ``Tool`` (via ``register_tool()``) to log this call under
+    in ``api_call_log``. Optional — omit for no logging.
     """
     if not token:
         logger.error("Readwise token is not set — cannot archive document")
@@ -319,31 +367,37 @@ def archive_reader_document(token: str, doc_id: str) -> bool:
         logger.warning("Cannot archive a Reader document without an id")
         return False
 
-    url = _UPDATE_URL.format(doc_id=doc_id)
-    for _ in range(_MAX_RETRIES):
-        try:
-            resp = requests.patch(
-                url,
-                json={"location": "archive"},
-                headers={"Authorization": f"Token {token}"},
-                timeout=30,
+    with tracked_call(tool, "readwise", "archive", db_path=db_path) as call:
+        url = _UPDATE_URL.format(doc_id=doc_id)
+        for _ in range(_MAX_RETRIES):
+            try:
+                resp = requests.patch(
+                    url,
+                    json={"location": "archive"},
+                    headers={"Authorization": f"Token {token}"},
+                    timeout=30,
+                )
+            except requests.RequestException as e:
+                logger.warning("Failed to archive Reader document %s: %s", doc_id, e)
+                call.error_message = str(e)
+                return False
+
+            if resp.status_code == 429:
+                _sleep_for_retry(resp)
+                continue
+
+            call.http_status = resp.status_code
+            if resp.status_code in (200, 201, 204):
+                call.success = True
+                return True
+
+            call.error_message = resp.text[:200]
+            logger.warning(
+                "Readwise API returned %s archiving %s: %s",
+                resp.status_code, doc_id, resp.text[:200],
             )
-        except requests.RequestException as e:
-            logger.warning("Failed to archive Reader document %s: %s", doc_id, e)
             return False
 
-        if resp.status_code == 429:
-            _sleep_for_retry(resp)
-            continue
-
-        if resp.status_code in (200, 201, 204):
-            return True
-
-        logger.warning(
-            "Readwise API returned %s archiving %s: %s",
-            resp.status_code, doc_id, resp.text[:200],
-        )
+        call.error_message = "gave up after repeated rate limiting"
+        logger.warning("Gave up archiving %s after repeated rate limiting", doc_id)
         return False
-
-    logger.warning("Gave up archiving %s after repeated rate limiting", doc_id)
-    return False

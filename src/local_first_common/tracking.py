@@ -28,6 +28,16 @@ Typical usage (URL fetch context manager)::
             return None          # failed — already logged
         metadata = parse(fetch.html)
         fetch.title = metadata.title
+
+Typical usage (external API call: Readwise, Mastodon, Bluesky)::
+
+    from local_first_common.tracking import register_tool, tracked_call
+
+    tool = register_tool("my-tool")
+
+    with tracked_call(tool, "readwise", "save") as call:
+        ok = save_to_readwise(token, url)
+        call.success = ok
 """
 
 import atexit
@@ -199,6 +209,31 @@ INSERT INTO fetch_log
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
+# ── api_call_log (non-fetch external API calls: Readwise, Mastodon, Bluesky) ─
+
+_CREATE_API_CALL_SEQUENCE = "CREATE SEQUENCE IF NOT EXISTS api_call_log_id_seq START 1;"
+
+_CREATE_API_CALL_TABLE = """
+CREATE TABLE IF NOT EXISTS api_call_log (
+    id            BIGINT DEFAULT nextval('api_call_log_id_seq') PRIMARY KEY,
+    tool_id       BIGINT REFERENCES tools(id),
+    service       VARCHAR NOT NULL,  -- 'readwise', 'mastodon', 'bluesky'
+    operation     VARCHAR NOT NULL,  -- 'save', 'list', 'archive', 'fetch_posts', 'auth'
+    success       BOOLEAN NOT NULL,
+    http_status   INTEGER,
+    error_message VARCHAR,
+    duration_ms   INTEGER,
+    item_count    INTEGER,
+    attempted_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+_INSERT_API_CALL = """
+INSERT INTO api_call_log
+    (tool_id, service, operation, success, http_status, error_message, duration_ms, item_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+"""
+
 
 def _normalize_db_path(path: Path, *, default_filename: str) -> Path:
     if path.exists() and path.is_dir():
@@ -239,6 +274,8 @@ def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
     conn.execute(_CREATE_FETCH_LOG_TABLE)
+    conn.execute(_CREATE_API_CALL_SEQUENCE)
+    conn.execute(_CREATE_API_CALL_TABLE)
 
 
 def _persist_run_payloads(
@@ -707,3 +744,90 @@ class _FetchContext:
         finally:
             _record_write_stat(write_ok, time.monotonic() - start)
         return False
+
+
+def tracked_call(
+    tool: "Tool",
+    service: str,
+    operation: str,
+    db_path: str | Path | None = None,
+) -> "_ApiCallContext":
+    """Context manager that logs one call to an external API (Readwise, Mastodon, Bluesky).
+
+    Unlike ``tracked_fetch``, this does not perform the call itself — the
+    caller already owns request/retry/rate-limit handling for that service.
+    Set ``call.success``, ``call.http_status``, ``call.item_count`` and
+    ``call.error_message`` inside the block::
+
+        with tracked_call(tool, "readwise", "save") as call:
+            resp = requests.post(...)
+            call.success = resp.status_code in (200, 201)
+            call.http_status = resp.status_code
+
+    If the block raises, the call is logged as failed automatically and the
+    exception still propagates. If ``tool.id`` is None (registration failed
+    or no tool was passed), logging is silently skipped.
+    """
+    return _ApiCallContext(tool, service, operation, db_path)
+
+
+class _ApiCallContext:
+    def __init__(self, tool, service, operation, db_path):
+        self.tool = tool
+        self.service = service
+        self.operation = operation
+        self.db_path = db_path
+        self.success: bool = False
+        self.http_status: int | None = None
+        self.error_message: str | None = None
+        self.item_count: int | None = None
+        self._start: float = 0.0
+
+    def __enter__(self) -> Self:
+        self._start = time.monotonic()
+        return self
+
+    def __exit__(self, exc_type, exc_val, _tb):
+        if exc_type is not None:
+            self.success = False
+            self.error_message = self.error_message or str(exc_val)
+
+        if self.tool is None or self.tool.id is None:
+            return False  # tool not registered — skip logging silently
+
+        duration_ms = int((time.monotonic() - self._start) * 1000)
+        start = time.monotonic()
+        write_ok = False
+        try:
+            import duckdb
+
+            path = _resolve_db_path(self.db_path)
+            conn = duckdb.connect(str(path))
+            try:
+                _ensure_schema(conn)
+                conn.execute(
+                    _INSERT_API_CALL,
+                    [
+                        self.tool.id,
+                        self.service,
+                        self.operation,
+                        self.success,
+                        self.http_status,
+                        self.error_message,
+                        duration_ms,
+                        self.item_count,
+                    ],
+                )
+                write_ok = True
+            finally:
+                conn.close()
+        except Exception as exc:  # noqa: BLE001
+            _warn_tracking_failure(
+                "tracked_call failed to persist api_call_log row",
+                exc,
+                tool_name=self.tool.name,
+                run_context="api_call_log_insert",
+            )
+        finally:
+            _record_write_stat(write_ok, time.monotonic() - start)
+        return False  # never suppress exceptions from the with-block body

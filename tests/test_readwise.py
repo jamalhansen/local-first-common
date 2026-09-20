@@ -1,6 +1,7 @@
 """Tests for the shared Readwise Reader integration module."""
 from unittest.mock import MagicMock, patch
 
+import duckdb
 import requests
 
 from local_first_common.readwise import (
@@ -9,6 +10,17 @@ from local_first_common.readwise import (
     list_reader_refs,
     save_to_readwise,
 )
+
+
+def _last_row(db_path, table: str = "api_call_log") -> dict:
+    conn = duckdb.connect(str(db_path))
+    try:
+        cur = conn.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 1")
+        cols = [d[0] for d in cur.description]
+        row = cur.fetchone()
+        return dict(zip(cols, row))
+    finally:
+        conn.close()
 
 
 class TestSaveToReadwise:
@@ -337,3 +349,83 @@ class TestArchiveReaderDocument:
             side_effect=requests.ConnectionError("timeout"),
         ):
             assert archive_reader_document("tok_abc", "abc123") is False
+
+
+class TestApiCallLogging:
+    """Passing tool= logs the call to api_call_log; omitting it changes nothing."""
+
+    def test_save_logs_success(self, tmp_path):
+        from local_first_common.tracking import register_tool
+
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        with patch("local_first_common.readwise.requests.post", return_value=mock_resp):
+            assert save_to_readwise("tok_abc", "https://example.com/a", tool=tool, db_path=db) is True
+
+        row = _last_row(db, table="api_call_log")
+        assert row["service"] == "readwise"
+        assert row["operation"] == "save"
+        assert row["success"] is True
+        assert row["http_status"] == 201
+
+    def test_save_logs_failure(self, tmp_path):
+        from local_first_common.tracking import register_tool
+
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+        with patch(
+            "local_first_common.readwise.requests.post",
+            side_effect=requests.ConnectionError("timeout"),
+        ):
+            assert save_to_readwise("tok_abc", "https://example.com/a", tool=tool, db_path=db) is False
+
+        row = _last_row(db, table="api_call_log")
+        assert row["success"] is False
+        assert "timeout" in row["error_message"]
+
+    def test_archive_logs_success(self, tmp_path):
+        from local_first_common.tracking import register_tool
+
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+        resp = MagicMock()
+        resp.status_code = 200
+        with patch("local_first_common.readwise.requests.patch", return_value=resp):
+            assert archive_reader_document("tok_abc", "doc1", tool=tool, db_path=db) is True
+
+        row = _last_row(db, table="api_call_log")
+        assert row["operation"] == "archive"
+        assert row["success"] is True
+
+    def test_list_documents_logs_item_count(self, tmp_path):
+        from local_first_common.tracking import register_tool
+
+        db = tmp_path / "test.duckdb"
+        tool = register_tool("test-tool", db_path=db)
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {
+            "results": [
+                {"title": "A", "source_url": "https://a.example/"},
+                {"title": "B", "source_url": "https://b.example/"},
+            ],
+            "nextPageCursor": None,
+        }
+        with patch("local_first_common.readwise.requests.get", return_value=resp):
+            items = list_reader_documents("tok_abc", tool=tool, db_path=db)
+
+        assert len(items) == 2
+        row = _last_row(db, table="api_call_log")
+        assert row["operation"] == "list"
+        assert row["item_count"] == 2
+
+    def test_no_tool_means_no_row(self, tmp_path):
+        """Backward compatible: omitting tool= is a no-op for logging, not an error."""
+        db = tmp_path / "test.duckdb"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 201
+        with patch("local_first_common.readwise.requests.post", return_value=mock_resp):
+            assert save_to_readwise("tok_abc", "https://example.com/a") is True
+        assert not db.exists()

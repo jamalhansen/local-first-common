@@ -1,7 +1,10 @@
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 
 import requests
+
+from local_first_common.tracking import Tool, tracked_call
 
 from .base import SocialReader
 
@@ -13,25 +16,38 @@ def fetch_posts(
     keywords: Sequence[str],
     instances: Sequence[str] = DEFAULT_INSTANCES,
     limit: int = 25,
+    tool: Tool | None = None,
+    db_path: str | Path | None = None,
 ) -> list[dict]:
-    """Search Mastodon for posts matching keywords (as hashtags)."""
+    """Search Mastodon for posts matching keywords (as hashtags).
+
+    ``tool``: registered ``Tool`` (via ``register_tool()``) to log this call under
+    in ``api_call_log``. Optional — omit for no logging.
+    """
     all_posts = []
     seen_ids = set()
 
-    for instance in instances:
-        for keyword in keywords:
-            tag = keyword.lstrip("#")
-            url = f"https://{instance}/api/v1/timelines/tag/{tag}"
-            try:
-                resp = requests.get(url, params={"limit": limit}, timeout=10)
-                resp.raise_for_status()
-                for post in resp.json():
-                    if post["id"] not in seen_ids:
-                        seen_ids.add(post["id"])
-                        all_posts.append(post)
-            except requests.RequestException as e:
-                logger.warning("Mastodon fetch failed for %s on %s: %s", tag, instance, e)
-                continue
+    with tracked_call(tool, "mastodon", "fetch_posts", db_path=db_path) as call:
+        call.success = True
+        for instance in instances:
+            for keyword in keywords:
+                tag = keyword.lstrip("#")
+                url = f"https://{instance}/api/v1/timelines/tag/{tag}"
+                try:
+                    resp = requests.get(url, params={"limit": limit}, timeout=10)
+                    resp.raise_for_status()
+                    call.http_status = resp.status_code
+                    for post in resp.json():
+                        if post["id"] not in seen_ids:
+                            seen_ids.add(post["id"])
+                            all_posts.append(post)
+                except requests.RequestException as e:
+                    logger.warning("Mastodon fetch failed for %s on %s: %s", tag, instance, e)
+                    call.success = False
+                    call.error_message = str(e)
+                    continue
+        call.item_count = len(all_posts)
+
     return all_posts
 
 def extract_urls_from_post(post: dict) -> list[str]:
