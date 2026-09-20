@@ -260,6 +260,16 @@ def _resolve_db_path(override: str | Path | None = None) -> Path:
     return path
 
 
+def get_tracking_db_path(override: str | Path | None = None) -> Path:
+    """Public accessor for the resolved tracking DB path (env override, then default).
+
+    For read-only consumers outside this module (e.g. a health-monitoring tool
+    querying processing_log/fetch_log/api_call_log directly) that need the same
+    path resolution as every write in this module, without duplicating it.
+    """
+    return _resolve_db_path(override)
+
+
 def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_SEQUENCE)
     conn.execute(_CREATE_TABLE)

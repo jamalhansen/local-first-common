@@ -13,6 +13,7 @@ from local_first_common.tracking import (
     Tool,
     _resolve_db_path,
     flush_queued_runs,
+    get_tracking_db_path,
     get_tracking_write_stats,
     log_run,
     register_tool,
@@ -67,6 +68,11 @@ class TestResolveDbPath:
         deep = tmp_path / "a" / "b" / "c" / "tracking.duckdb"
         _resolve_db_path(deep)
         assert deep.parent.exists()
+
+    def test_public_accessor_matches_private_resolution(self, tmp_path, monkeypatch):
+        env_path = tmp_path / "env.duckdb"
+        monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(env_path))
+        assert get_tracking_db_path() == _resolve_db_path()
 
     def test_explicit_override_beats_env(self, tmp_path, monkeypatch):
         env_path = tmp_path / "env.duckdb"
