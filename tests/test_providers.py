@@ -566,3 +566,50 @@ class TestGeminiProvider:
         monkeypatch.setenv("GEMINI_API_KEY", "test-key")
         p = GeminiProvider()
         assert p.model == "gemini-2.0-flash"
+
+    def test_images_are_base64_decoded_before_part_from_bytes(self, monkeypatch):
+        """images= is documented (and every other provider expects) a base64-encoded
+        string, but Part.from_bytes wants raw bytes -- decode at the boundary rather
+        than pushing the SDK's specific convention onto every caller."""
+        import base64
+        import sys
+        import types as pytypes
+
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        raw_image_bytes = b"\x89PNG\r\n\x1a\nfakepngdata"
+        img_b64 = base64.b64encode(raw_image_bytes).decode("ascii")
+
+        captured_parts = []
+
+        fake_part = MagicMock()
+        fake_part.from_bytes = MagicMock(
+            side_effect=lambda data, mime_type: captured_parts.append(data) or MagicMock()
+        )
+        fake_types_module = pytypes.ModuleType("google.genai.types")
+        fake_types_module.Part = fake_part
+        fake_types_module.GenerateContentConfig = MagicMock(return_value=MagicMock())
+
+        fake_response = MagicMock()
+        fake_response.text = "a description"
+        fake_client = MagicMock()
+        fake_client.models.generate_content = MagicMock(return_value=fake_response)
+        fake_genai_module = pytypes.ModuleType("google.genai")
+        fake_genai_module.Client = MagicMock(return_value=fake_client)
+        fake_genai_module.types = fake_types_module
+
+        fake_google_module = pytypes.ModuleType("google")
+        fake_google_module.genai = fake_genai_module
+
+        with patch.dict(
+            sys.modules,
+            {
+                "google": fake_google_module,
+                "google.genai": fake_genai_module,
+                "google.genai.types": fake_types_module,
+            },
+        ):
+            provider = GeminiProvider()
+            result = provider._complete("system", "user", images=[img_b64])
+
+        assert result == "a description"
+        assert captured_parts == [raw_image_bytes]

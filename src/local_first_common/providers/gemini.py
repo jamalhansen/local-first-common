@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 from typing import Any, ClassVar
@@ -56,7 +57,7 @@ class GeminiProvider(BaseProvider):
             if images:
                 for img in images:
                     contents.append(
-                        types.Part.from_bytes(data=img, mime_type="image/jpeg")
+                        types.Part.from_bytes(data=base64.b64decode(img), mime_type="image/jpeg")
                     )
 
             if response_model:
@@ -132,7 +133,7 @@ class GeminiProvider(BaseProvider):
             if images:
                 for img in images:
                     contents.append(
-                        types.Part.from_bytes(data=img, mime_type="image/jpeg")
+                        types.Part.from_bytes(data=base64.b64decode(img), mime_type="image/jpeg")
                     )
 
             if response_model:
