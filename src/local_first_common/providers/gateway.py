@@ -96,6 +96,16 @@ class GatewayProvider(BaseProvider):
         data = response.json()
         self.input_tokens = data.get("input_tokens")
         self.output_tokens = data.get("output_tokens")
+        # The gateway resolves an unspecified model server-side (self.model
+        # was sent as "" so it could apply that provider's real default) and
+        # returns what it actually used -- capture it so a caller reading
+        # .model *after* the call (not before) sees the real value. Found
+        # live 2026-09-20: every tool's own processing_log row logs
+        # llm.model at timed_run() call time, before this response exists,
+        # so this alone doesn't fix those rows -- it fixes .model for any
+        # caller (present or future) that reads it post-call instead.
+        if data.get("model"):
+            self.model = data["model"]
         content = data["text"]
         return self._parse_json_response(content, response_model) if response_model else content
 

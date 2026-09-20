@@ -18,6 +18,7 @@ from local_first_common.tracking import (
     log_run,
     register_tool,
     timed_run,
+    track_llm_run,
     tracked_call,
     tracked_fetch,
 )
@@ -326,6 +327,16 @@ class TestTimedRun:
         row = _last_row(db)
         assert row["xml_fallbacks"] is None
 
+    def test_model_can_be_updated_inside_the_block(self, tmp_path):
+        """The pattern a tool needs when the model isn't known until the call
+        resolves it (e.g. a GatewayProvider called with no explicit --model):
+        re-read llm.model *after* the call, same as item_count/provider."""
+        db = tmp_path / "test.duckdb"
+        with timed_run("my-tool", "", db_path=db) as run:
+            run.model = "phi4-mini"  # e.g. the real value after llm.complete() resolves it
+        row = _last_row(db)
+        assert row["model"] == "phi4-mini"
+
     def test_logs_on_exception(self, tmp_path):
         db = tmp_path / "test.duckdb"
         with pytest.raises(ValueError), timed_run("failing-tool", "model", db_path=db):
@@ -345,6 +356,55 @@ class TestTimedRun:
             pass
         row = _last_row(db)
         assert row["duration_seconds"] >= 0.0
+
+
+class TestTrackLlmRun:
+    """track_llm_run()/_TrackedRun had zero test coverage before this --
+    real tools use it (marketing-persona-counsel, pedantic-troll,
+    persona-counsel), found while adding the .model property below."""
+
+    def test_logs_on_success(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with track_llm_run("my-tool", "phi4-mini", db_path=db):
+            pass
+        row = _last_row(db)
+        assert row["tool_name"] == "my-tool"
+        assert row["model"] == "phi4-mini"
+        assert row["success"] is True
+
+    def test_item_count_via_context_manager(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with track_llm_run("my-tool", "model", db_path=db) as run:
+            run.item_count = 3
+        row = _last_row(db)
+        assert row["item_count"] == 3
+
+    def test_provider_via_context_manager(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with track_llm_run("my-tool", "model", db_path=db) as run:
+            run.provider = "anthropic"
+        row = _last_row(db)
+        assert row["provider"] == "anthropic"
+
+    def test_model_can_be_updated_inside_the_block(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with track_llm_run("my-tool", "", db_path=db) as run:
+            run.model = "phi4-mini"
+        row = _last_row(db)
+        assert row["model"] == "phi4-mini"
+
+    def test_track_extracts_tokens_from_base_provider_style_result(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+
+        class FakeResult:
+            input_tokens = 10
+            output_tokens = 20
+
+        with track_llm_run("my-tool", "model", db_path=db) as run:
+            run.track(FakeResult())
+        row = _last_row(db)
+        assert row["input_tokens"] == 10
+        assert row["output_tokens"] == 20
 
 
 # ---------------------------------------------------------------------------

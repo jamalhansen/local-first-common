@@ -44,6 +44,18 @@ class TestGatewayProviderComplete:
         assert sent["system"] == "system prompt"
         assert sent["user"] == "user prompt"
 
+    def test_model_is_updated_from_the_response_after_the_call(self):
+        """Regression 2026-09-20: .model stays "" until the call completes
+        (deliberate, so the server applies the real default) -- but after a
+        successful response, .model should reflect what was actually used,
+        not stay stuck empty for any caller reading it post-call."""
+        response = _FakeResponse(200, {"text": "ok", "model": "phi4-mini"})
+        with patch("httpx.post", return_value=response):
+            provider = GatewayProvider("http://127.0.0.1:8788", "ollama")
+            assert provider.model == ""
+            provider.complete("s", "u")
+        assert provider.model == "phi4-mini"
+
     def test_no_model_given_does_not_send_the_provider_alias_as_the_model(self):
         """Regression test: model must never fall back to target_provider --
         "local"/"anthropic" are provider aliases, not real model names. Found

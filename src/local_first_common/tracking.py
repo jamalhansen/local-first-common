@@ -544,6 +544,14 @@ class _TrackedRun:
     def provider(self, value: str | None):
         self._run.provider = value
 
+    @property
+    def model(self) -> str | None:
+        return self._run.model
+
+    @model.setter
+    def model(self, value: str | None):
+        self._run.model = value
+
     def track(self, result: any, item_count: int | None = None):
         """Extract metadata (tokens, etc.) from a result object.
 
