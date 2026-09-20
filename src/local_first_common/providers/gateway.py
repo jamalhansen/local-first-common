@@ -42,10 +42,17 @@ class GatewayProvider(BaseProvider):
         model: str | None = None,
         debug: bool = False,
         timeout: float = 120.0,
+        tool_name: str | None = None,
     ):
         self.target_provider = target_provider
         self._gateway_url = gateway_url.rstrip("/")
         self._timeout = timeout
+        # Sent to the gateway so ITS OWN processing_log row is attributed to
+        # the real caller instead of always "llm-gateway-service" -- found
+        # live 2026-09-20: every gateway-routed call produced two rows for
+        # the same request (the calling tool's own, and the gateway's own),
+        # and the gateway's row carried no caller information at all.
+        self.tool_name = tool_name
         # Deliberately NOT `model or target_provider` -- target_provider is a
         # provider alias ("local", "anthropic"), never a real model name.
         # Passing an empty model through (BaseProvider's own `model or
@@ -88,6 +95,8 @@ class GatewayProvider(BaseProvider):
         }
         if images:
             payload["images"] = images
+        if self.tool_name:
+            payload["tool_name"] = self.tool_name
         return payload
 
     def _handle_response(self, response: httpx.Response, response_model: Any | None) -> str | dict[str, Any]:

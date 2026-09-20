@@ -30,6 +30,20 @@ class TestGatewayProviderProviderName:
         assert provider.provider_name == "anthropic"
 
 
+class TestGatewayProviderToolName:
+    def test_tool_name_sent_in_payload_when_set(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            GatewayProvider("http://127.0.0.1:8788", "anthropic", tool_name="japanese-tutor").complete("s", "u")
+        assert mock_post.call_args.kwargs["json"]["tool_name"] == "japanese-tutor"
+
+    def test_no_tool_name_key_in_payload_when_unset(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete("s", "u")
+        assert "tool_name" not in mock_post.call_args.kwargs["json"]
+
+
 class TestGatewayProviderComplete:
     def test_returns_plain_text_when_no_response_model(self):
         response = _FakeResponse(200, {"text": "a real answer", "input_tokens": 10, "output_tokens": 3})
@@ -209,6 +223,13 @@ class TestResolveProviderGatewayDelegation:
         assert provider.target_provider == "anthropic"
         assert provider.model == "claude-haiku"
 
+    def test_gateway_url_set_threads_tool_name_into_the_provider(self, monkeypatch):
+        """So the gateway's own processing_log row can be attributed to the
+        real caller instead of always "llm-gateway-service"."""
+        with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
+            provider = resolve_provider(provider_name="anthropic", tool_name="my-tool")
+        assert provider.tool_name == "my-tool"
+
     def test_gateway_url_set_still_validates_unknown_provider(self, monkeypatch):
         import typer
 
@@ -242,8 +263,10 @@ class TestResolveProviderGatewayDelegation:
         assert isinstance(provider, FallbackProvider)
         assert isinstance(provider.primary, GatewayProvider)
         assert provider.primary.target_provider == "ollama"
+        assert provider.primary.tool_name == "my-tool"
         assert isinstance(provider.fallback, GatewayProvider)
         assert provider.fallback.target_provider == "deepseek"
+        assert provider.fallback.tool_name == "my-tool"
         assert provider.tool_name == "my-tool"
 
     def test_gateway_url_set_non_ollama_provider_skips_fallback_wrapping(self):

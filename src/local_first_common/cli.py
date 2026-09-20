@@ -197,7 +197,7 @@ def resolve_provider(
         # client -- keeps both legs going through the gateway's auth/logging.
         from .providers.gateway import GatewayProvider
 
-        primary = GatewayProvider(LLM_GATEWAY_URL, provider_name, model, debug=debug)
+        primary = GatewayProvider(LLM_GATEWAY_URL, provider_name, model, debug=debug, tool_name=tool_name)
 
         if fallback and provider_name in ("ollama", "local"):
             from .providers.fallback import FallbackProvider
@@ -207,7 +207,7 @@ def resolve_provider(
             if target:
                 fb_prov_name, fb_model_name = target
                 if fb_prov_name in providers and fb_prov_name not in ("ollama", "local"):
-                    fb_instance = GatewayProvider(LLM_GATEWAY_URL, fb_prov_name, fb_model_name, debug=debug)
+                    fb_instance = GatewayProvider(LLM_GATEWAY_URL, fb_prov_name, fb_model_name, debug=debug, tool_name=tool_name)
                     return FallbackProvider(primary, fb_instance, debug=debug, tool_name=tool_name)
 
         return primary
