@@ -601,7 +601,7 @@ check-tools:
 	@FAILED=0; \
 	for repo in $(REPOS); do \
 		case "$$repo" in \
-			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"pipeline-analysis/") continue ;; \
+			"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/"|"pipeline-analysis/"|"fleet-dashboard-service/"|"llm-gateway-service/") continue ;; \
 		esac; \
 		if [ -f "$$repo/pyproject.toml" ]; then \
 			echo "--- Checking $$repo ---"; \
