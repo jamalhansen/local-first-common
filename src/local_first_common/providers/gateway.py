@@ -53,6 +53,13 @@ class GatewayProvider(BaseProvider):
         # the same request (the calling tool's own, and the gateway's own),
         # and the gateway's row carried no caller information at all.
         self.tool_name = tool_name
+        # The database write for this call happens exactly once, inside the
+        # gateway (2026-09-20) -- this provider no longer keeps its own
+        # duplicate processing_log row, so a caller that wants source_location
+        # or item_count persisted has to set these before calling complete()/
+        # acomplete(); they travel in the request instead of a second write.
+        self.source_location: str | None = None
+        self.item_count: int | None = None
         # Deliberately NOT `model or target_provider` -- target_provider is a
         # provider alias ("local", "anthropic"), never a real model name.
         # Passing an empty model through (BaseProvider's own `model or
@@ -97,6 +104,10 @@ class GatewayProvider(BaseProvider):
             payload["images"] = images
         if self.tool_name:
             payload["tool_name"] = self.tool_name
+        if self.source_location:
+            payload["source_location"] = self.source_location
+        if self.item_count is not None:
+            payload["item_count"] = self.item_count
         return payload
 
     def _handle_response(self, response: httpx.Response, response_model: Any | None) -> str | dict[str, Any]:

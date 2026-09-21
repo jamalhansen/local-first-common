@@ -44,6 +44,41 @@ class TestGatewayProviderToolName:
         assert "tool_name" not in mock_post.call_args.kwargs["json"]
 
 
+class TestGatewayProviderSourceLocationAndItemCount:
+    """The database write for a call happens once, inside the gateway
+    (2026-09-20) -- this provider no longer keeps its own duplicate row, so
+    a caller's source_location/item_count have to travel in the request to
+    survive at all."""
+
+    def test_source_location_sent_when_set(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        provider = GatewayProvider("http://127.0.0.1:8788", "anthropic")
+        provider.source_location = "example:あ"
+        with patch("httpx.post", return_value=response) as mock_post:
+            provider.complete("s", "u")
+        assert mock_post.call_args.kwargs["json"]["source_location"] == "example:あ"
+
+    def test_no_source_location_key_in_payload_when_unset(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete("s", "u")
+        assert "source_location" not in mock_post.call_args.kwargs["json"]
+
+    def test_item_count_sent_when_set(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        provider = GatewayProvider("http://127.0.0.1:8788", "anthropic")
+        provider.item_count = 5
+        with patch("httpx.post", return_value=response) as mock_post:
+            provider.complete("s", "u")
+        assert mock_post.call_args.kwargs["json"]["item_count"] == 5
+
+    def test_no_item_count_key_in_payload_when_unset(self):
+        response = _FakeResponse(200, {"text": "ok"})
+        with patch("httpx.post", return_value=response) as mock_post:
+            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete("s", "u")
+        assert "item_count" not in mock_post.call_args.kwargs["json"]
+
+
 class TestGatewayProviderComplete:
     def test_returns_plain_text_when_no_response_model(self):
         response = _FakeResponse(200, {"text": "a real answer", "input_tokens": 10, "output_tokens": 3})
