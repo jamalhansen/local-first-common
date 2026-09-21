@@ -207,6 +207,21 @@ class TestLogRun:
         row = _last_row(db)
         assert row["item_count"] == 42
 
+    def test_via_gateway_stored(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        log_run("llm-gateway-service", "phi4-mini", provider="ollama", via_gateway=True, db_path=db)
+        row = _last_row(db)
+        assert row["via_gateway"] is True
+
+    def test_via_gateway_defaults_to_null(self, tmp_path):
+        """A tool's own timed_run()/log_run() call doesn't set via_gateway --
+        only the gateway's own logging of the same call does. NULL, not
+        False, so a reader can tell "never set" apart from "known non-gateway"."""
+        db = tmp_path / "test.duckdb"
+        log_run("some-tool", "phi4-mini", db_path=db)
+        row = _last_row(db)
+        assert row["via_gateway"] is None
+
     def test_multiple_inserts_get_unique_ids(self, tmp_path):
         db = tmp_path / "test.duckdb"
         log_run("tool-a", "modelA", db_path=db)

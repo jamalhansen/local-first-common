@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS processing_log (
     error_message    VARCHAR,
     xml_fallbacks    INTEGER,
     parse_errors     INTEGER,
+    via_gateway      BOOLEAN,
     created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -165,8 +166,8 @@ CREATE TABLE IF NOT EXISTS processing_log (
 _INSERT = """
 INSERT INTO processing_log
     (tool_name, model, provider, source_location, item_count, input_tokens, output_tokens,
-     duration_seconds, success, error_message, xml_fallbacks, parse_errors)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+     duration_seconds, success, error_message, xml_fallbacks, parse_errors, via_gateway)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 # ── tools + fetch_log (URL fetches) ─────────────────────────────────────────
@@ -292,6 +293,15 @@ def _ensure_schema(conn) -> None:
     conn.execute(
         "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS provider VARCHAR;"
     )
+    # Migrate existing DBs that predate the via_gateway column (2026-09-20).
+    # TRUE only on the row llm-gateway-service logs for its own request
+    # handling -- lets a reader tell that row apart from the calling tool's
+    # own timed_run() row for the exact same logical call (every gateway-
+    # routed call produces both), which was silently double-counting fleet
+    # activity and model/provider usage totals before this column existed.
+    conn.execute(
+        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS via_gateway BOOLEAN;"
+    )
     conn.execute(_CREATE_TOOLS_SEQUENCE)
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
@@ -399,9 +409,17 @@ def log_run(
     error_message: str | None = None,
     xml_fallbacks: int | None = None,
     parse_errors: int | None = None,
+    via_gateway: bool | None = None,
     db_path: str | Path | None = None,
 ) -> None:
-    """Insert one processing-run row.  Never raises — failures emit a warning."""
+    """Insert one processing-run row.  Never raises — failures emit a warning.
+
+    via_gateway distinguishes the row llm-gateway-service logs for its own
+    request handling from the calling tool's own timed_run() row for the
+    same logical call -- both get created for a gateway-routed call. Pass
+    True only from the gateway's own logging; leave it unset from a tool's
+    own timed_run()/log_run() call.
+    """
     # Coerce model to str or None — guards against MagicMock in tests
     if model is not None and not isinstance(model, str):
         model = str(model)
@@ -452,6 +470,7 @@ def log_run(
         _to_str_or_none(error_message),
         _to_int_or_none(xml_fallbacks),
         _to_int_or_none(parse_errors),
+        None if via_gateway is None else bool(via_gateway),
     ]
 
     if _batched_mode_enabled():
