@@ -50,23 +50,6 @@ class FallbackProvider(BaseProvider):
         self._active = primary
         super().__init__(model=primary.model, debug=debug)
 
-    def _log_primary_failure(self, exc: Exception) -> None:
-        """Record the failed primary attempt to processing_log -- not just a
-        log line -- so a fallback that silently "worked" is still visible in
-        the same place tool activity/model-choice reporting reads from."""
-        try:
-            from ..tracking import log_run
-
-            log_run(
-                self.tool_name or f"{self.primary.__class__.__name__}(unattributed)",
-                self.primary.model,
-                provider=getattr(self.primary, "provider_name", None),
-                success=False,
-                error_message=f"fallback triggered: {exc}"[:500],
-            )
-        except Exception:
-            logger.debug("Failed to log primary-provider failure for diagnostics", exc_info=True)
-
     @property
     def model(self) -> str:
         return self._active.model
@@ -86,6 +69,26 @@ class FallbackProvider(BaseProvider):
     @property
     def output_tokens(self) -> int | None:
         return getattr(self._active, "output_tokens", None)
+
+    @property
+    def source_location(self) -> str | None:
+        return getattr(self._active, "source_location", None)
+
+    @source_location.setter
+    def source_location(self, value: str | None) -> None:
+        # Set on both -- whichever one actually runs needs it in its own
+        # payload; there's no way to know in advance which that'll be.
+        self.primary.source_location = value
+        self.fallback.source_location = value
+
+    @property
+    def item_count(self) -> int | None:
+        return getattr(self._active, "item_count", None)
+
+    @item_count.setter
+    def item_count(self, value: int | None) -> None:
+        self.primary.item_count = value
+        self.fallback.item_count = value
 
     def _complete(
         self,
@@ -112,7 +115,6 @@ class FallbackProvider(BaseProvider):
                     "source_location": self.fallback.model,
                 },
             )
-            self._log_primary_failure(exc)
             self._emit_status(
                 f"  [fallback] Local model failed ({exc}). Failing over to {self.fallback.__class__.__name__} ({self.fallback.model})..."
             )
@@ -147,7 +149,6 @@ class FallbackProvider(BaseProvider):
                     "source_location": self.fallback.model,
                 },
             )
-            self._log_primary_failure(exc)
             self._emit_status(
                 f"  [fallback] Local model failed ({exc}). Failing over to {self.fallback.__class__.__name__} ({self.fallback.model})..."
             )

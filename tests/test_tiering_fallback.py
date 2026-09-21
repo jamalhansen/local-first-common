@@ -163,27 +163,23 @@ def test_fallback_provider_fails_over_on_bad_json():
     assert fallback.call_count == 1
 
 
-def test_fallback_provider_logs_primary_failure_for_diagnosis(tmp_path, monkeypatch):
-    db = tmp_path / "test.duckdb"
-    monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db))
+def test_fallback_provider_warns_on_primary_failure_via_plain_logging(caplog):
+    """Jamal: an LLM call logged once inside the gateway -- if logs are
+    needed outside the gateway, use logging like a normal developer. A
+    primary-provider failure that triggers fallback never reaches the
+    gateway at all (it failed before/instead of a real completion), so it
+    used to get its own separate processing_log write here; now it's a
+    plain logger.warning(), same as any other in-process diagnostic."""
+    import logging
 
     primary = DummyPrimary()
     fallback = DummyFallback()
     provider = FallbackProvider(primary, fallback, tool_name="my-tool")
-    provider.complete("sys", "user")
 
-    import duckdb
+    with caplog.at_level(logging.WARNING):
+        provider.complete("sys", "user")
 
-    conn = duckdb.connect(str(db))
-    row = conn.execute(
-        "SELECT tool_name, model, provider, success, error_message FROM processing_log ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    conn.close()
-    assert row[0] == "my-tool"
-    assert row[1] == "llama3.2:3b"  # the failed primary's model, not the fallback's
-    assert row[2] == "dummy-ollama"  # the failed primary's provider, not the fallback's
-    assert row[3] is False
-    assert "fallback triggered" in row[4]
+    assert any("Primary provider" in r.message for r in caplog.records)
 
 
 def test_fallback_provider_name_delegates_to_whichever_leg_actually_ran():
@@ -196,19 +192,21 @@ def test_fallback_provider_name_delegates_to_whichever_leg_actually_ran():
     assert provider.provider_name == "dummy-anthropic"
 
 
-def test_fallback_provider_without_tool_name_still_logs_attributed_to_class(tmp_path, monkeypatch):
-    db = tmp_path / "test.duckdb"
-    monkeypatch.setenv("LOCAL_FIRST_TRACKING_DB", str(db))
+def test_fallback_provider_proxies_source_location_and_item_count_to_both_legs():
+    """Set on both primary and fallback -- there's no way to know in advance
+    which one will actually run, and the gateway's single database write
+    needs whichever one does to have the real values."""
+    primary = DummyPrimary()
+    fallback = DummyFallback()
+    provider = FallbackProvider(primary, fallback)
 
-    provider = FallbackProvider(DummyPrimary(), DummyFallback())
-    provider.complete("sys", "user")
+    provider.source_location = "example:あ"
+    provider.item_count = 5
 
-    import duckdb
-
-    conn = duckdb.connect(str(db))
-    row = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
-    conn.close()
-    assert "DummyPrimary" in row[0]
+    assert primary.source_location == "example:あ"
+    assert fallback.source_location == "example:あ"
+    assert primary.item_count == 5
+    assert fallback.item_count == 5
 
 
 def test_resolve_provider_wires_fallback(monkeypatch):
