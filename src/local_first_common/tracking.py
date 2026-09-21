@@ -510,6 +510,7 @@ def timed_run(
     source_location: str | None = None,
     db_path: str | Path | None = None,
     provider: str | None = None,
+    via_gateway: bool | None = None,
 ) -> "_TimedRun":
     """Context manager that times a block and logs success/failure automatically.
 
@@ -524,8 +525,13 @@ def timed_run(
     don't have this, and it's fine to leave it unset (NULL). ``run.provider``
     can also be set inside the block, same as ``item_count``, for a caller
     that only learns it partway through (e.g. after a fallback fires).
+
+    Pass ``via_gateway=True`` only from llm-gateway-service's own logging of
+    its own request handling -- see log_run()'s docstring for why this
+    exists (distinguishing the gateway's row from the calling tool's own
+    row for the same logical call). Every other caller leaves it unset.
     """
-    return _TimedRun(tool_name, model, source_location, db_path, provider)
+    return _TimedRun(tool_name, model, source_location, db_path, provider, via_gateway)
 
 
 def track_llm_run(
@@ -623,10 +629,11 @@ class _TrackedRun:
 
 
 class _TimedRun:
-    def __init__(self, tool_name, model, source_location, db_path, provider=None):
+    def __init__(self, tool_name, model, source_location, db_path, provider=None, via_gateway=None):
         self.tool_name = tool_name
         self.model = model
         self.provider = provider
+        self.via_gateway = via_gateway
         self.source_location = source_location
         self.db_path = db_path
         self.item_count: int | None = None
@@ -656,6 +663,7 @@ class _TimedRun:
                 error_message=str(exc_val) if exc_val else None,
                 xml_fallbacks=self.xml_fallbacks,
                 parse_errors=self.parse_errors,
+                via_gateway=self.via_gateway,
                 db_path=self.db_path,
             )
         except Exception as exc:  # noqa: BLE001

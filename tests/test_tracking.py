@@ -314,6 +314,20 @@ class TestTimedRun:
         row = _last_row(db)
         assert row["item_count"] == 7
 
+    def test_via_gateway_passed_through_to_log_run(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with timed_run("llm-gateway-service", "phi4-mini", provider="ollama", via_gateway=True, db_path=db):
+            pass
+        row = _last_row(db)
+        assert row["via_gateway"] is True
+
+    def test_via_gateway_defaults_to_null(self, tmp_path):
+        db = tmp_path / "test.duckdb"
+        with timed_run("my-tool", "phi4-mini", db_path=db):
+            pass
+        row = _last_row(db)
+        assert row["via_gateway"] is None
+
     def test_item_count_defaults_to_none(self, tmp_path):
         db = tmp_path / "test.duckdb"
         with timed_run("tool", "model", db_path=db):
