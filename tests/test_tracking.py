@@ -422,6 +422,20 @@ class TestTrackLlmRun:
         row = _last_row(db)
         assert row["model"] == "phi4-mini"
 
+    def test_never_marked_via_gateway(self, tmp_path):
+        """Jamal: track_llm_run for either counsel (persona-counsel,
+        marketing-persona-counsel) should write to the db but not be marked
+        as using the gateway -- their calls go through pydantic-ai's own
+        model objects directly (ollama/anthropic APIs), never through
+        llm-gateway-service. track_llm_run()/_TrackedRun has no via_gateway
+        parameter at all, so this is guaranteed by construction, not by
+        caller discipline -- this test just locks that in."""
+        db = tmp_path / "test.duckdb"
+        with track_llm_run("persona-counsel", "phi4-mini", db_path=db) as run:
+            run.item_count = 1
+        row = _last_row(db)
+        assert row["via_gateway"] is None
+
     def test_track_extracts_tokens_from_base_provider_style_result(self, tmp_path):
         db = tmp_path / "test.duckdb"
 
