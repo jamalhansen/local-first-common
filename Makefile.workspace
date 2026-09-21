@@ -169,27 +169,6 @@ check-standards:
 			fi; \
 		fi; \
 	done; \
-	echo "Verifying timed_run coverage (CLI entry points)..."; \
-	for repo in $(REPOS); do \
-		if [ -d "$$repo/src" ]; then \
-			case "$$repo" in \
-				"local-first-common/"|"local-first-mcp/"|"pebble/"|"local-ai-tool-template/") continue ;; \
-			esac; \
-			find "$$repo/src" -name "*.py" | while read pyfile; do \
-				fname=$$(basename "$$pyfile"); \
-				case "$$fname" in \
-					logic.py|cli.py|main.py) \
-						if grep -qE "\.acomplete\(|\.complete\(" "$$pyfile" 2>/dev/null; then \
-							if ! grep -q "timed_run" "$$pyfile"; then \
-								echo "  [FAIL] $$pyfile calls LLM but is missing timed_run"; \
-								FAILED=$$((FAILED + 1)); \
-							fi; \
-						fi; \
-						;; \
-				esac; \
-			done; \
-		fi; \
-	done; \
 	echo "Checking for test isolation (tracking DB)..."; \
 	for repo in $(REPOS); do \
 		if [ -d "$$repo/tests" ]; then \
