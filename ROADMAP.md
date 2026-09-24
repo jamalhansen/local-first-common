@@ -137,3 +137,34 @@ why each deviation was made, in `~/vaults/Contexta/ops/tool-state-local-first-ba
   - Maintained `make use-local` (for fast local development across packages) and `make use-github` (for clean, portable Git commits and remote publishing).
   - Validated with pre-push portability hooks (`pre_push_check.py`) and automated `make verify` preflight across all 27 repositories.
 
+### Phase 6: Claude Subscription as a Provider Auth Option (not started)
+
+Requested 2026-09-24. `AnthropicProvider` (`providers/anthropic.py`) currently
+requires `ANTHROPIC_API_KEY` and bills per-token through the Anthropic API --
+separate from, and in addition to, a Claude Pro/Max subscription used for
+claude.ai or Claude Code. The desire is an option to authenticate as that
+subscription instead of (or alongside) an API key, so fleet tool usage draws
+on the subscription's flat-rate quota rather than metered API spend.
+
+- [ ] **Step 6.1: Establish feasibility.** Anthropic doesn't publish a
+  general-purpose SDK auth mode for subscription credentials the way
+  `ANTHROPIC_API_KEY` works -- Claude Code's own subscription auth (`claude
+  setup-token` et al.) is scoped to Claude Code / the Agent SDK, not
+  confirmed as usable from a plain `anthropic` Python client call. Needs
+  research before any implementation: whether Anthropic exposes an
+  OAuth/token flow for the `anthropic` SDK itself, and what it would and
+  wouldn't cover (e.g. likely tied to interactive/CLI-style usage, not
+  guaranteed to work for every tool's cron-driven, non-interactive calls).
+- [ ] **Step 6.2: If feasible, add as an auth mode, not a replacement.**
+  `AnthropicProvider.__init__` would gain a second credential path (e.g.
+  reusing Claude Code's stored OAuth token, or a `claude setup-token`-style
+  flow) alongside the existing `api_key` parameter -- api-key auth stays the
+  default so nothing already deployed breaks. `resolve_provider()` and the
+  `--provider anthropic` CLI surface wouldn't need to change; this is purely
+  a credential-resolution change inside the provider.
+- [ ] **Step 6.3: Decide where it applies.** Interactive tools (this session,
+  `japanese-tutor`'s web UI) are the natural first fit; unattended cron jobs
+  (weekly-review, discovery-loop) may not have a valid path to subscription
+  auth at all if it depends on an interactive login/token refresh -- Step 6.1
+  needs to answer this before Step 6.3 can be scoped.
+

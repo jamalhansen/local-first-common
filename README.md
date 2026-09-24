@@ -343,3 +343,7 @@ python3 ~/projects/py-tooling/install_hooks.py --repo path/to/repo
 1. Create `src/local_first_common/providers/myprovider.py` subclassing `BaseProvider`.
 2. Implement both `complete` and `acomplete`.
 3. Add it to `PROVIDERS` in `src/local_first_common/providers/__init__.py`.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the ecosystem's phased architecture history and what's planned next -- including Phase 6, authenticating `AnthropicProvider` against a Claude subscription instead of (or alongside) `ANTHROPIC_API_KEY`.
