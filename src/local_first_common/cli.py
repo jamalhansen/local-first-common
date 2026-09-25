@@ -131,6 +131,23 @@ def resolve_dry_run(dry_run: bool, no_llm: bool) -> bool:
     return dry_run
 
 
+_MODEL_ALIAS_INTENTS = {"@fast": "fast", "@vision": "vision", "@best": "text", "@encoding": "encoding"}
+
+
+def resolve_model_alias(provider_name: str, model: str | None) -> str | None:
+    """Turn an Ollama alias (@fast, @vision, @best, @encoding) into an installed model name.
+
+    Resolved here, client-side, so neither Ollama nor the gateway ever sees "@vision".
+    """
+    if provider_name not in ("ollama", "local") or not model or not model.startswith("@"):
+        return model
+    if model not in _MODEL_ALIAS_INTENTS:
+        raise typer.BadParameter(f"Unknown model alias '{model}'. Valid: {', '.join(_MODEL_ALIAS_INTENTS)}")
+    from .providers.ollama import OllamaProvider
+
+    return OllamaProvider().recommend_model(_MODEL_ALIAS_INTENTS[model])
+
+
 def resolve_provider(
     providers: dict | None = None,
     provider_name: str = "ollama",
@@ -183,6 +200,8 @@ def resolve_provider(
         raise typer.BadParameter(
             f"Unknown provider '{provider_name}'. Valid options: {valid}"
         )
+
+    model = resolve_model_alias(provider_name, model)
 
     if LLM_GATEWAY_URL and use_gateway:
         # The gateway calls resolve_provider() itself server-side (same

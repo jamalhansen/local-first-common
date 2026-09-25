@@ -96,3 +96,29 @@ class TestJsonOption:
         assert res3.exit_code == 0
         assert '{"status": "ok"}' in res3.output
 
+
+
+class TestModelAliases:
+    def test_non_alias_and_non_ollama_pass_through(self):
+        from local_first_common.cli import resolve_model_alias
+
+        assert resolve_model_alias("ollama", "phi4") == "phi4"
+        assert resolve_model_alias("anthropic", "@vision") == "@vision"
+        assert resolve_model_alias("ollama", None) is None
+
+    def test_alias_resolves_to_recommended_model(self, monkeypatch):
+        from local_first_common.cli import resolve_model_alias
+        from local_first_common.providers.ollama import OllamaProvider
+
+        monkeypatch.setattr(OllamaProvider, "recommend_model", lambda self, intent: f"model-for-{intent}")
+        assert resolve_model_alias("ollama", "@vision") == "model-for-vision"
+        assert resolve_model_alias("local", "@best") == "model-for-text"
+
+    def test_unknown_alias_is_an_error(self):
+        import pytest
+        import typer
+
+        from local_first_common.cli import resolve_model_alias
+
+        with pytest.raises(typer.BadParameter):
+            resolve_model_alias("ollama", "@nope")
