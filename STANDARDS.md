@@ -81,8 +81,10 @@ See [ROADMAP.md](ROADMAP.md) for the phased migration plan and architectural roa
 
 ## Run Tracking
 
-Every tool must register itself and log each LLM run to the central DuckDB
-at `~/sync/local-first/processing_log.duckdb`.
+Every tool must register itself, and every run ends up in the central DuckDB
+at `~/sync/local-first/processing_log.duckdb` exactly once. `fleet audit`
+(fleet-cli) checks registration mechanically; a documented exception goes in the
+repo's own pyproject as `[tool.fleet.exempt]` `tracking = "reason"`.
 
 ### `register_tool(name)` — required for all tools
 
@@ -96,24 +98,36 @@ from local_first_common.tracking import register_tool, timed_run
 _TOOL = register_tool("my-tool-name")
 ```
 
-### `timed_run(...)` — required for every LLM call
+### LLM calls — logged once, by llm-gateway-service
 
-Wrap each LLM call in a `timed_run` context manager. Set `item_count`,
-`input_tokens`, and `output_tokens` inside the block so they're captured in
-`processing_log`.
+Don't wrap LLM calls in `timed_run`. `resolve_provider(..., tool_name=...)`
+routes through the gateway, which writes the `processing_log` row (model,
+provider, tokens) itself; a `timed_run` around the call writes a second row for
+the same call. To attach context, set it on the provider *before* the call:
 
 ```python
-with timed_run("my-tool-name", llm.model, source_location=source) as _run:
-    result = llm.complete(system, user)
-    _run.item_count = 1
-    _run.input_tokens = getattr(llm, "input_tokens", None) or None
-    _run.output_tokens = getattr(llm, "output_tokens", None) or None
+llm = resolve_provider(PROVIDERS, provider_name, model=model, tool_name="my-tool-name")
+llm.source_location = str(path)  # URL, file path, or date string
+llm.item_count = 1
+result = llm.complete(system, user)
 ```
 
-- `input_tokens` / `output_tokens`: populated automatically for Anthropic and
-  Groq providers. Ollama and mock providers leave these `None`.
-- `source_location`: a URL, file path, or date string identifying what was
-  processed.
+### `timed_run(...)` — for work the gateway doesn't log
+
+Use `timed_run` where no gateway row will exist: runs with no LLM call at all
+(scanners, validators, reports — pass `None` as the model), and model calls
+that deliberately bypass the gateway (`use_gateway=False`, as pebble does;
+direct embedding calls, as vault-semantic-search does). Any exception inside the block — including `typer.Exit(1)` —
+is logged as a failed run, and process-doctor alerts on tools that fail most
+runs, so keep a deliberate "problems found" exit *outside* the block.
+
+```python
+with timed_run("my-tool-name", None, source_location=str(vault)) as run:
+    results = scan(vault)
+    run.item_count = len(results)
+if problems(results):
+    raise typer.Exit(1)
+```
 
 ### `tracked_fetch(tool, url, ...)` — required for tools that fetch external URLs
 

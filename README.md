@@ -263,6 +263,10 @@ with timed_run("my-tool", provider.model, source_location=url) as run:
 
 DB: `~/sync/local-first/processing_log.duckdb` (override: `LOCAL_FIRST_TRACKING_DB`).
 
+Calls routed through llm-gateway-service are already logged by the gateway; wrapping
+them in `timed_run` too writes a duplicate row. See STANDARDS.md "Run Tracking" for
+which calls take `timed_run`.
+
 Also tracks URL fetches (`tracked_fetch`, table `fetch_log`) and calls to external
 APIs that aren't URL fetches — Readwise, Mastodon, Bluesky (`tracked_call`, table
 `api_call_log`). `tracked_call` doesn't perform the request itself (those functions
