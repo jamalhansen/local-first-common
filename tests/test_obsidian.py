@@ -7,8 +7,62 @@ from local_first_common.obsidian import (
     get_daily_note_path,
     get_week_dates,
     load_daily_notes_for_week,
+    parse_frontmatter,
+    parse_frontmatter_text,
+    read_body,
     render_obsidian_template,
+    split_frontmatter,
 )
+
+
+class TestFrontmatter:
+    def test_basic(self):
+        assert parse_frontmatter_text("---\ntitle: A\ntags: [x]\n---\nBody\n") == (
+            {"title": "A", "tags": ["x"]},
+            "Body\n",
+        )
+
+    def test_no_frontmatter_returns_text_unchanged(self):
+        assert parse_frontmatter_text("# Heading\n\nText") == ({}, "# Heading\n\nText")
+
+    def test_horizontal_rule_in_body_is_kept(self):
+        text = "---\ntitle: A\n---\nIntro\n\n---\n\nAfter the rule\n"
+        assert parse_frontmatter_text(text)[1] == "Intro\n\n---\n\nAfter the rule\n"
+
+    def test_dashes_inside_a_value_do_not_close_the_block(self):
+        text = "---\nnote: a\n  ---b\n---\nBody"
+        assert parse_frontmatter_text(text) == ({"note": "a ---b"}, "Body")
+
+    def test_dot_terminator(self):
+        assert parse_frontmatter_text("---\na: 1\n...\nBody") == ({"a": 1}, "Body")
+
+    def test_bom_and_crlf(self):
+        assert parse_frontmatter_text("﻿---\r\na: 1\r\n---\r\nBody") == ({"a": 1}, "Body")
+
+    def test_empty_block(self):
+        assert parse_frontmatter_text("---\n---\nBody") == ({}, "Body")
+
+    def test_unclosed_block_is_not_frontmatter(self):
+        assert split_frontmatter("---\na: 1\nno close") is None
+
+    def test_invalid_yaml_keeps_body(self):
+        assert parse_frontmatter_text("---\na: [unclosed\n---\nBody") == ({}, "Body")
+
+    def test_non_mapping_yaml(self):
+        assert parse_frontmatter_text("---\n- a\n- b\n---\nBody") == ({}, "Body")
+
+    def test_split_preserves_raw_yaml_for_rewrites(self):
+        text = "---\nTitle: A  # comment\n---\n\nBody"
+        raw, body = split_frontmatter(text)
+        assert f"---\n{raw}---\n{body}" == text
+
+    def test_file_helpers(self, tmp_path):
+        p = tmp_path / "n.md"
+        p.write_text("---\na: 1\n---\nBody", encoding="utf-8")
+        assert parse_frontmatter(p) == {"a": 1}
+        assert read_body(p) == "Body"
+        assert parse_frontmatter(tmp_path / "missing.md") == {}
+        assert read_body(tmp_path / "missing.md") == ""
 
 
 class TestFindVaultRoot:

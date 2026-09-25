@@ -5,8 +5,60 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import frontmatter
+import yaml
 
 from .text import strip_wikilinks
+
+
+def split_frontmatter(text: str) -> tuple[str, str] | None:
+    """Split markdown into (raw_frontmatter_yaml, body), or None if there is no block.
+
+    The opening line must be exactly ``---`` (a leading BOM is allowed) and the block
+    closes at the first line that is exactly ``---`` or ``...``. The body starts on
+    the line after the closing delimiter, byte-for-byte, so callers can rewrite a file
+    as ``---\\n{yaml}---\\n{body}`` without disturbing the rest of the note.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].lstrip("﻿").rstrip() != "---":
+        return None
+    for i in range(1, len(lines)):
+        if lines[i].rstrip() in ("---", "..."):
+            return "".join(lines[1:i]), "".join(lines[i + 1:])
+    return None
+
+
+def parse_frontmatter_text(text: str) -> tuple[dict, str]:
+    """Return (frontmatter_dict, body). Never raises on malformed notes.
+
+    No block -> ({}, text). Invalid or non-mapping YAML -> ({}, body).
+    """
+    parts = split_frontmatter(text)
+    if parts is None:
+        return {}, text
+    raw, body = parts
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError:
+        return {}, body
+    return (data if isinstance(data, dict) else {}), body
+
+
+def parse_frontmatter(path: Path) -> dict:
+    """Frontmatter of a markdown file as a dict; {} if missing, unreadable or invalid."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    return parse_frontmatter_text(text)[0]
+
+
+def read_body(path: Path) -> str:
+    """Body of a markdown file after its frontmatter block; "" if unreadable."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return parse_frontmatter_text(text)[1]
 
 
 def find_vault_root(env_var: str = "OBSIDIAN_VAULT_PATH") -> Path:
