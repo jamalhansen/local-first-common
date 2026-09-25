@@ -35,6 +35,17 @@ class OllamaProvider(BaseProvider):
             logger.warning(f"Could not fetch Ollama models: {e}")
             return []
 
+    def _capabilities(self, name: str) -> list[str]:
+        """Capabilities Ollama reports for a model (completion, vision, embedding, ...)."""
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                response = client.post(f"{self.models_url}/api/show", json={"model": name})
+                response.raise_for_status()
+                return response.json().get("capabilities") or []
+        except Exception as e:  # noqa: BLE001 - an unreachable or older Ollama just means "unknown", not a crash
+            logger.warning(f"Could not read capabilities for {name}: {e}")
+            return []
+
     def _get_installed_model_names(self) -> list[str]:
         return [m["name"] for m in self._get_model_info()]
 
@@ -74,12 +85,16 @@ class OllamaProvider(BaseProvider):
 
         # 1. Vision Logic
         if intent == "vision":
-            # Priority for vision
             for pref in ["llama3.2-vision", "llava", "moondream"]:
                 for name in names:
                     if pref in name.lower():
                         return name
-            return names[0]  # Fallback to first available
+            # Otherwise any model Ollama itself reports as vision-capable (e.g. gemma4).
+            # Never fall back to an arbitrary model: names[0] can be an embedding model.
+            for name in names:
+                if "vision" in self._capabilities(name):
+                    return name
+            return self.default_model
 
         # 2. Fast / Classification / Tagging / Extraction / Encoding Logic
         if intent in ("fast", "encoding", "classification", "tagging", "extraction"):

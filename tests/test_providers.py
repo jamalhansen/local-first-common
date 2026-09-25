@@ -622,3 +622,26 @@ class TestGeminiProvider:
 
         assert result == "a description"
         assert captured_parts == [raw_image_bytes]
+
+
+class TestOllamaVisionRecommendation:
+    def _provider(self, monkeypatch, models, caps):
+        from local_first_common.providers.ollama import OllamaProvider
+
+        p = OllamaProvider()
+        monkeypatch.setattr(p, "_get_model_info", lambda: [{"name": n} for n in models])
+        monkeypatch.setattr(p, "_capabilities", lambda name: caps.get(name, []))
+        return p
+
+    def test_prefers_known_vision_models(self, monkeypatch):
+        p = self._provider(monkeypatch, ["nomic-embed-text", "llava:7b"], {})
+        assert p.recommend_model("vision") == "llava:7b"
+
+    def test_falls_back_to_a_model_ollama_reports_as_vision_capable(self, monkeypatch):
+        p = self._provider(monkeypatch, ["nomic-embed-text", "phi4", "gemma4:latest"],
+                           {"gemma4:latest": ["completion", "vision"], "nomic-embed-text": ["embedding"]})
+        assert p.recommend_model("vision") == "gemma4:latest"
+
+    def test_never_picks_an_arbitrary_non_vision_model(self, monkeypatch):
+        p = self._provider(monkeypatch, ["nomic-embed-text", "phi4"], {"nomic-embed-text": ["embedding"]})
+        assert p.recommend_model("vision") == p.default_model
