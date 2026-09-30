@@ -4,11 +4,21 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
+from pathlib import Path
 from typing import Any, ClassVar
 
 from .base import BaseProvider
 
 logger = logging.getLogger(__name__)
+
+
+class ClaudeCodeError(RuntimeError):
+    """A failed `claude -p` call, carrying the envelope's structured status."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class ClaudeCodeProvider(BaseProvider):
@@ -46,13 +56,29 @@ class ClaudeCodeProvider(BaseProvider):
                 "claude CLI not found on PATH. Install Claude Code or set CLAUDE_CODE_BINARY."
             )
         self.timeout = timeout
+        # Claude Code injects its working directory's context (path, git status,
+        # project CLAUDE.md) into the prompt, so a tool run from inside a repo
+        # would leak that repo into every completion. Run from an empty dir.
+        self.workdir = Path(tempfile.gettempdir()) / "claude-code-provider"
+        self.workdir.mkdir(exist_ok=True)
         self.input_tokens: int = 0
         self.output_tokens: int = 0
         # What the same calls would have cost on the metered API -- not billed.
         self.notional_cost_usd: float = 0.0
 
+    @staticmethod
+    def _is_rate_limit_error(e: Exception) -> bool:
+        # Subscription limits reset in hours, so BaseProvider's 5-20s backoff only
+        # delays the failure. Decided on type, not text: the CLI's limit message
+        # embeds a reset epoch, which can itself contain "429".
+        if isinstance(e, ClaudeCodeError):
+            return False
+        return BaseProvider._is_rate_limit_error(e)
+
     def _build_args(self, system: str, response_model: Any | None) -> list[str]:
         # No --bare: it forces ANTHROPIC_API_KEY auth and disables OAuth.
+        # System prompt stays in argv: --system-prompt-file is silently ignored
+        # outside --bare (verified 2026-09-29), which would drop every prompt.
         # Empty --tools/--setting-sources keep this a plain completion: no tool
         # use, no user hooks or plugins, no MCP servers, nothing persisted.
         args = [
@@ -97,23 +123,18 @@ class ClaudeCodeProvider(BaseProvider):
                 (stderr or stdout)[:500],
                 extra={"run_context": "provider_cli_bad_output", "source_location": self.model},
             )
-            raise RuntimeError(
+            raise ClaudeCodeError(
                 f"claude CLI failed (exit {returncode}): {(stderr or stdout).strip()[:500]}"
             )
 
+        # Same semantics as AnthropicProvider (uncached input only), so
+        # processing_log totals stay comparable across the two.
         usage = envelope.get("usage") or {}
-        self.input_tokens += (
-            usage.get("input_tokens", 0)
-            + usage.get("cache_read_input_tokens", 0)
-            + usage.get("cache_creation_input_tokens", 0)
-        )
+        self.input_tokens += usage.get("input_tokens", 0)
         self.output_tokens += usage.get("output_tokens", 0)
         self.notional_cost_usd += envelope.get("total_cost_usd") or 0.0
 
         if envelope.get("is_error") or returncode != 0:
-            # Subscription usage limits reset in hours, so this deliberately
-            # avoids "429" -- BaseProvider's 5-20s backoff would just burn time
-            # before FallbackProvider gets a chance to route elsewhere.
             status = envelope.get("api_error_status")
             detail = envelope.get("result") or envelope.get("subtype") or stderr.strip()
             logger.warning(
@@ -124,7 +145,7 @@ class ClaudeCodeProvider(BaseProvider):
                 extra={"run_context": "provider_api_error", "source_location": self.model},
             )
             label = "usage/rate limit" if status == 429 else f"status {status}"
-            raise RuntimeError(f"Claude Code error ({label}): {detail}")
+            raise ClaudeCodeError(f"Claude Code error ({label}): {detail}", status=status)
 
         if response_model is not None:
             structured = envelope.get("structured_output")
@@ -155,10 +176,11 @@ class ClaudeCodeProvider(BaseProvider):
                 text=True,
                 timeout=self.timeout,
                 env=self._env(),
+                cwd=self.workdir,
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            raise RuntimeError(f"claude CLI timed out after {self.timeout}s")
+            raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s")
         return self._handle_output(proc.stdout, proc.stderr, proc.returncode, response_model)
 
     async def _acomplete(
@@ -176,15 +198,19 @@ class ClaudeCodeProvider(BaseProvider):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self._env(),
+            cwd=self.workdir,
         )
         try:
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(user.encode()), timeout=self.timeout
             )
         except TimeoutError:
-            proc.kill()
-            await proc.wait()
-            raise RuntimeError(f"claude CLI timed out after {self.timeout}s")
+            raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s")
+        finally:
+            # Also covers cancellation: an orphaned `claude` keeps spending quota.
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
         return self._handle_output(
             stdout.decode(), stderr.decode(), proc.returncode or 0, response_model
         )

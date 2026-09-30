@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import BaseModel
 
-from local_first_common.providers.claude_code import ClaudeCodeProvider
+from local_first_common.providers.claude_code import ClaudeCodeError, ClaudeCodeProvider
 
 
 class Score(BaseModel):
@@ -81,11 +81,17 @@ class TestArgs:
 
 
 class TestComplete:
+    def test_runs_from_neutral_workdir_not_callers_repo(self, provider):
+        with patch("subprocess.run", return_value=_proc(_envelope())) as run:
+            provider.complete("sys", "ping")
+        assert run.call_args.kwargs["cwd"] == provider.workdir
+        assert provider.workdir.name == "claude-code-provider"
+
     def test_plain_text_and_usage_accounting(self, provider):
         with patch("subprocess.run", return_value=_proc(_envelope())) as run:
             assert provider.complete("sys", "ping") == "pong"
         assert run.call_args.kwargs["input"] == "ping"
-        assert provider.input_tokens == 425
+        assert provider.input_tokens == 400  # uncached only, matching AnthropicProvider
         assert provider.output_tokens == 40
         assert provider.notional_cost_usd == pytest.approx(0.0012)
 
@@ -108,6 +114,12 @@ class TestComplete:
         assert "usage limit" in str(exc.value)
         assert not provider._is_rate_limit_error(exc.value)
 
+    def test_limit_message_with_429_in_epoch_is_not_retried(self, provider):
+        out = _envelope(is_error=True, result="Claude AI usage limit reached|1759429000")
+        with patch("subprocess.run", return_value=_proc(out, returncode=1)) as run, pytest.raises(ClaudeCodeError):
+            provider.complete("sys", "x")
+        assert run.call_count == 2  # schema retry only, no rate-limit backoff loop
+
     def test_non_json_output_raises(self, provider):
         with patch("subprocess.run", return_value=_proc("", returncode=1, stderr="not logged in")), pytest.raises(RuntimeError, match="not logged in"):
             provider._complete("sys", "x")
@@ -119,6 +131,17 @@ class TestComplete:
     def test_images_rejected(self, provider):
         with pytest.raises(RuntimeError, match="does not support images"):
             provider._complete("sys", "x", images=["abc"])
+
+
+class TestAcompleteCancellation:
+    def test_cancelled_call_kills_the_subprocess(self, provider):
+        proc = MagicMock()
+        proc.returncode = None
+        proc.communicate = AsyncMock(side_effect=asyncio.CancelledError)
+        proc.wait = AsyncMock()
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), pytest.raises(asyncio.CancelledError):
+            asyncio.run(provider._acomplete("sys", "x"))
+        proc.kill.assert_called_once()
 
 
 class TestAcomplete:

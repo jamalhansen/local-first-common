@@ -155,9 +155,11 @@ flat quota instead of metered `ANTHROPIC_API_KEY` billing.
   `claude-code`) rather than a credential path inside `AnthropicProvider`,
   since the transport is a subprocess, not the SDK. `AnthropicProvider` is
   unchanged. Each call is locked down to a plain completion: no tools, no
-  user settings/hooks/plugins, no MCP, no persisted session. Usage limits
-  raise without "429" so `BaseProvider` doesn't spend 35s backing off before
-  `FallbackProvider` can reroute.
+  user settings/hooks/plugins, no MCP, no persisted session. Failures raise
+  a typed `ClaudeCodeError` that is never treated as a retryable 429 --
+  subscription limits reset in hours, and the CLI's limit message embeds a
+  reset epoch that can itself contain "429". Gotcha: `--system-prompt-file`
+  is silently ignored outside `--bare`, so the system prompt must go in argv.
 - [x] **Step 6.3: Where it applies.** Anywhere via `--provider claude-code`,
   including through `llm-gateway-service` (which reads `PROVIDERS`
   dynamically). Deliberately excluded from `detect_active_cloud_provider()` so

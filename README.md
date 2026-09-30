@@ -64,7 +64,9 @@ result = provider.complete("describe", "img", images=["..."])
 - Unattended jobs (cron/launchd): run `claude setup-token` once and export `CLAUDE_CODE_OAUTH_TOKEN`. Set `CLAUDE_CODE_BINARY` if `claude` isn't on the service's PATH (e.g. installed via nvm).
 - `provider.notional_cost_usd` accumulates what the same calls would have cost on the API.
 - Never picked automatically as a fallback; opt in with `FALLBACK_PROVIDER=claude-code`.
+- Calls run from an empty temp dir: Claude Code injects its working directory's path, git status and CLAUDE.md into the prompt, which would otherwise leak the calling repo into every completion.
 - No image input yet.
+- Real-CLI tests (spend quota): `RUN_CLAUDE_CLI_TESTS=1 uv run pytest tests/test_claude_code_integration.py`.
 
 #### Intelligent Model Discovery (Ollama)
 
