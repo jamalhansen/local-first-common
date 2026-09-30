@@ -22,7 +22,7 @@ To ensure a predictable and safe user experience across the entire toolkit, all 
 ### `--provider` (short: `-p`)
 
 - **Behavior**: Choose the LLM backend.
-- **Choices shown by `provider_option()`**: `ollama`, `local`, `anthropic`, `gemini`, `groq`, `deepseek`.
+- **Choices shown by `provider_option()`**: `ollama`, `local`, `anthropic`, `claude-code`, `gemini`, `groq`, `deepseek`.
 - **Accepted input note**: `mock` is accepted by `resolve_provider(...)` for compatibility, but is not listed by `provider_option()`.
 - **Default**: Defaults to `ollama` (local) unless the `MODEL_PROVIDER` environment variable is set.
 

@@ -19,6 +19,7 @@ FAST_TIER_MODELS: dict[str, str] = {
     "ollama": "llama3.2:3b",
     "local": "llama3.2:3b",
     "anthropic": "claude-haiku-4-5-20251001",
+    "claude-code": "haiku",
     "gemini": "gemini-2.0-flash",
     "groq": "llama-3.1-8b-instant",
     "deepseek": "deepseek-chat",
@@ -29,6 +30,7 @@ FAST_TIER_MODELS: dict[str, str] = {
 # Target: Deep multi-perspective synthesis, adversarial critique, complex analysis.
 REASONING_TIER_MODELS: dict[str, str] = {
     "anthropic": "claude-sonnet-5",
+    "claude-code": "sonnet",
     "gemini": "gemini-2.5-pro",
     "groq": "llama-3.3-70b-versatile",
     "deepseek": "deepseek-reasoner",

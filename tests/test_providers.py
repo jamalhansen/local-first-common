@@ -31,6 +31,7 @@ class TestProvidersDict:
             "ollama",
             "local",
             "anthropic",
+            "claude-code",
             "gemini",
             "groq",
             "deepseek",

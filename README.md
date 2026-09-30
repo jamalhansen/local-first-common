@@ -53,7 +53,18 @@ result = await provider.acomplete("sys", "user")
 result = provider.complete("describe", "img", images=["..."])
 ```
 
-**Available providers:** `ollama`, `anthropic`, `gemini`, `groq`, `deepseek`.
+**Available providers:** `ollama`, `anthropic`, `claude-code`, `gemini`, `groq`, `deepseek`.
+
+#### Claude subscription (`claude-code`)
+
+`--provider claude-code` runs Claude through the headless `claude -p` CLI, so calls draw on a Claude Pro/Max subscription instead of metered API billing. No extra package needed -- just Claude Code installed and logged in.
+
+- Models: `haiku` (default), `sonnet`, `opus`, or a full model ID.
+- `ANTHROPIC_API_KEY` is stripped from the subprocess env; otherwise the CLI bills the API instead.
+- Unattended jobs (cron/launchd): run `claude setup-token` once and export `CLAUDE_CODE_OAUTH_TOKEN`. Set `CLAUDE_CODE_BINARY` if `claude` isn't on the service's PATH (e.g. installed via nvm).
+- `provider.notional_cost_usd` accumulates what the same calls would have cost on the API.
+- Never picked automatically as a fallback; opt in with `FALLBACK_PROVIDER=claude-code`.
+- No image input yet.
 
 #### Intelligent Model Discovery (Ollama)
 
@@ -350,4 +361,4 @@ python3 ~/projects/py-tooling/install_hooks.py --repo path/to/repo
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the ecosystem's phased architecture history and what's planned next -- including Phase 6, authenticating `AnthropicProvider` against a Claude subscription instead of (or alongside) `ANTHROPIC_API_KEY`.
+See [ROADMAP.md](ROADMAP.md) for the ecosystem's phased architecture history and what's planned next -- including Phase 6, Claude-subscription auth, delivered as the `claude-code` provider.
