@@ -301,6 +301,20 @@ yourself — added 2026-09-19 because those functions already caught and swallow
 their own request failures internally, so nothing about calling Readwise or
 searching social platforms showed up in any log table before this.
 
+### `local_first_common.heartbeat`
+
+A scheduled job tells process-doctor it is still making progress by touching a file. Call it once per unit of work (each item scored, each stage finished); with no label it reads `LOCALFIRST_JOB_LABEL`, which the LaunchAgent plist sets, and does nothing when that is unset (interactive runs, tests).
+
+```python
+from local_first_common.heartbeat import heartbeat
+
+for item in items:
+    score(item)
+    heartbeat()  # ~/sync/local-first/heartbeats/<label>, mtime is the beat
+```
+
+process-doctor judges a heartbeating job stuck only when the beat stops moving, instead of guessing from flat CPU, which misread "waiting on an LLM call" as "hung" and killed the discovery run most mornings from 2026-09-30. Jobs that never heartbeat keep the CPU heuristic.
+
 ## Workspace Orchestration
 
 ## Remediation Status (2026-04-19)
