@@ -4,6 +4,8 @@ Shared utilities for local-first AI tools. Extracts the common plumbing — LLM 
 
 See [ROADMAP.md](ROADMAP.md) for overall ecosystem architecture and roadmap, and [STANDARDS.md](STANDARDS.md) for CLI and development standards.
 
+How the fleet runs (scheduling, deploying, shared state, CI): see `OPERATIONS.md`. How a tool is written: `STANDARDS.md`.
+
 ## Installation
 
 Add as a git dependency in any project's `pyproject.toml`. Use extras to pull in whichever cloud provider SDKs you need — Ollama needs none:
