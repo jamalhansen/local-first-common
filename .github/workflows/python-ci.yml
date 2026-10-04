@@ -36,6 +36,9 @@ permissions:
 
 env:
   RUFF_PIN: "ruff==0.16.7"     # keep in step with RUFF_PIN in install_hooks.py
+  # Typer forces colour output when GITHUB_ACTIONS is set, so CLI tests that check
+  # --help text saw ANSI codes in CI only (blog-post-draft-reviewer, 2026-10-04).
+  _TYPER_FORCE_DISABLE_TERMINAL: "1"
   GITLEAKS_VERSION: "8.30.1"
 
 jobs:
