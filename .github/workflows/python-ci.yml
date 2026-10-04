@@ -46,7 +46,7 @@ jobs:
       run:
         working-directory: repo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: repo
           fetch-depth: 0          # full history for the secrets scan
@@ -59,9 +59,10 @@ jobs:
             git clone --depth 1 "https://github.com/jamalhansen/${s}.git" "${s}"
           done
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.2.0   # no v10 major tag exists; pin exact
         with:
           python-version: ${{ inputs.python-version }}
+          working-directory: repo
 
       - name: Install (from uv.lock, exactly)
         run: uv sync --frozen
