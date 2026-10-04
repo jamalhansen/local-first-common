@@ -38,6 +38,7 @@
 
 - **gitleaks** blocks commits that stage a credential (pre-commit), and CI scans the full history. All repos are public: a leaked key is a published key.
 - **pip-audit** runs in CI and weekly in `repo-health`.
+- **Dependabot security alerts** are on for every fleet repo (alerts only, no automatic PRs; enabled 2026-10-04). Check with `gh api repos/jamalhansen/<repo>/dependabot/alerts?state=open`.
 - Services bound to `0.0.0.0` (japanese-tutor, fleet-dashboard) are read-only and hold no secrets.
 
 ## CI
