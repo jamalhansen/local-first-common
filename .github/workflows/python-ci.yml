@@ -92,6 +92,9 @@ jobs:
             grep -E '^FAIL Required test coverage' "$RUNNER_TEMP/pytest.log" | while IFS= read -r line; do
               echo "::error title=coverage::${line}"
             done
+            # Whatever else went wrong (collection errors, crashes): the tail, as one annotation.
+            tail_text=$(tail -n 15 "$RUNNER_TEMP/pytest.log" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=pytest output (last 15 lines)::${tail_text}"
           fi
           exit $status
 
