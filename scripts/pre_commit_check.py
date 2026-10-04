@@ -84,6 +84,41 @@ def check_direct_llm_imports(repo_path: Path, all_files: bool = False) -> list[s
     return findings
 
 
+def check_secrets(repo_path: Path, all_files: bool = False) -> list[str]:
+    """Block a commit that stages a credential (gitleaks). Added 2026-10-04.
+
+    The fleet's general checks catch sensitive *filenames* (.env, keys); this
+    catches a token pasted into an ordinary file. Staged changes only for a
+    commit (~50 ms); the whole history with --all-files. Skipped, with a note,
+    on a machine without gitleaks rather than blocking every commit there.
+    """
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+
+    if shutil.which("gitleaks") is None:
+        print("  (gitleaks not installed: secret scan skipped -- brew install gitleaks)", file=sys.stderr)
+        return []
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        report = Path(f.name)
+    try:
+        cmd = ["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "0", "-f", "json", "-r", str(report)]
+        if not all_files:
+            cmd.append("--staged")
+        subprocess.run([*cmd, str(repo_path)], cwd=repo_path, capture_output=True, text=True, check=False)
+        leaks = json.loads(report.read_text() or "[]")
+    except (OSError, ValueError):
+        return []
+    finally:
+        report.unlink(missing_ok=True)
+    return [
+        f"  {leak.get('File')}:{leak.get('StartLine')} — possible secret ({leak.get('RuleID')}); "
+        f"remove it and rotate the credential"
+        for leak in leaks
+    ]
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) -> bool:
@@ -91,6 +126,7 @@ def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) ->
     extra = [
         ("Duplicate register_tool", check_duplicate_register_tool),
         ("Direct LLM imports",      lambda p: check_direct_llm_imports(p, all_files)),
+        ("Secrets (gitleaks)",      lambda p: check_secrets(p, all_files)),
     ]
     return _base_scan(repo_path, all_files=all_files, verbose=verbose, extra_checks=extra)
 
