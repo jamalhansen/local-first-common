@@ -74,13 +74,26 @@ jobs:
       - name: Tests
         id: tests
         if: success() || failure()
+        # Each failing test also becomes an ::error annotation, so the failure is
+        # readable on the run page and through the public API without opening
+        # the logs (which need a login even on public repos).
         run: |
+          set -o pipefail
           if [ ! -d tests ]; then echo "no tests/ directory"; exit 0; fi
-          if [ -d src ]; then
-            uv run --frozen pytest -q --cov=src --cov-fail-under=${{ inputs.coverage }}
-          else
-            uv run --frozen pytest -q
+          cov=""
+          if [ -d src ]; then cov="--cov=src --cov-fail-under=${{ inputs.coverage }}"; fi
+          # shellcheck disable=SC2086  # $cov is deliberately word-split
+          uv run --frozen pytest -q -rfE --tb=short $cov 2>&1 | tee "$RUNNER_TEMP/pytest.log"
+          status=$?
+          if [ $status -ne 0 ]; then
+            grep -E '^(FAILED|ERROR) ' "$RUNNER_TEMP/pytest.log" | head -20 | while IFS= read -r line; do
+              echo "::error title=pytest::${line}"
+            done
+            grep -E '^FAIL Required test coverage' "$RUNNER_TEMP/pytest.log" | while IFS= read -r line; do
+              echo "::error title=coverage::${line}"
+            done
           fi
+          exit $status
 
       - name: Known vulnerabilities (pip-audit)
         id: audit
