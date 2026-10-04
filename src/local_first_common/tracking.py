@@ -69,6 +69,39 @@ _WRITE_STATS = {
 _RUN_QUEUE_LOCK = threading.Lock()
 _QUEUED_RUNS: dict[str, list[list[object | None]]] = {}
 
+# DuckDB allows one writing process per file. With the gateway, the http-retriever
+# importer, artist-agent and process-doctor all writing processing_log.duckdb, a
+# second writer used to fail at once ("Could not set lock on file") and its row was
+# dropped: artist-agent's 2026-10-04 06:00 run lost its rows this way, and the
+# importer exited 1. Writes are tiny and locks are held for milliseconds, so a short
+# backoff almost always gets through. ~3 s worst case; never raises past the caller's
+# own never-raise handling.
+_LOCK_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4, 0.8, 1.6)
+_LOCK_STATS = {"retried": 0, "gave_up": 0}
+
+
+def _is_lock_error(exc: Exception) -> bool:
+    return "lock" in str(exc).lower()
+
+
+def _connect_with_retry(path: Path | str):
+    """duckdb.connect, retrying briefly while another process holds the write lock."""
+    import duckdb
+
+    for delay in (*_LOCK_RETRY_DELAYS, None):
+        try:
+            return duckdb.connect(str(path))
+        except duckdb.IOException as exc:
+            if not _is_lock_error(exc) or delay is None:
+                if _is_lock_error(exc):
+                    with _WRITE_STATS_LOCK:
+                        _LOCK_STATS["gave_up"] += 1
+                raise
+            with _WRITE_STATS_LOCK:
+                _LOCK_STATS["retried"] += 1
+            time.sleep(delay)
+    raise AssertionError("unreachable")
+
 
 def _duration_bucket(duration_seconds: float) -> str:
     if duration_seconds < 0.010:
@@ -91,20 +124,26 @@ def _record_write_stat(success: bool, duration_seconds: float) -> None:
 def get_tracking_write_stats(reset: bool = False) -> dict:
     """Return write-path instrumentation counters for tracking persistence.
 
-    Counters cover successful and failed write attempts and duration bucket counts.
-    Set ``reset=True`` to clear counters after reading.
+    Counters cover successful and failed write attempts, duration bucket counts,
+    and DuckDB write-lock contention (``lock_retried``: connects that waited for
+    another writer; ``lock_gave_up``: connects that waited the full backoff and
+    still failed, i.e. rows that were dropped). Set ``reset=True`` to clear.
     """
     with _WRITE_STATS_LOCK:
         snapshot = {
             "success": _WRITE_STATS["success"],
             "failure": _WRITE_STATS["failure"],
             "duration_buckets": dict(_WRITE_STATS["duration_buckets"]),
+            "lock_retried": _LOCK_STATS["retried"],
+            "lock_gave_up": _LOCK_STATS["gave_up"],
         }
         if reset:
             _WRITE_STATS["success"] = 0
             _WRITE_STATS["failure"] = 0
             for k in _WRITE_STATS["duration_buckets"]:
                 _WRITE_STATS["duration_buckets"][k] = 0
+            _LOCK_STATS["retried"] = 0
+            _LOCK_STATS["gave_up"] = 0
         return snapshot
 
 
@@ -327,9 +366,8 @@ def _persist_run_payloads(
     if not payloads:
         return True
     try:
-        import duckdb
 
-        conn = duckdb.connect(str(path))
+        conn = _connect_with_retry(path)
         try:
             _ensure_schema(conn)
             conn.executemany(_INSERT, payloads)
@@ -701,10 +739,9 @@ def register_tool(name: str, db_path: str | Path | None = None) -> "Tool":
     start = time.monotonic()
     write_ok = False
     try:
-        import duckdb
 
         path = _resolve_db_path(db_path)
-        conn = duckdb.connect(str(path))
+        conn = _connect_with_retry(path)
         try:
             _ensure_schema(conn)
             conn.execute(_UPSERT_TOOL, [name])
@@ -786,10 +823,9 @@ class _FetchContext:
         start = time.monotonic()
         write_ok = False
         try:
-            import duckdb
 
             path = _resolve_db_path(self.db_path)
-            conn = duckdb.connect(str(path))
+            conn = _connect_with_retry(path)
             try:
                 _ensure_schema(conn)
                 tool_id = self.tool.id
@@ -889,10 +925,9 @@ class _ApiCallContext:
         start = time.monotonic()
         write_ok = False
         try:
-            import duckdb
 
             path = _resolve_db_path(self.db_path)
-            conn = duckdb.connect(str(path))
+            conn = _connect_with_retry(path)
             try:
                 _ensure_schema(conn)
                 conn.execute(
