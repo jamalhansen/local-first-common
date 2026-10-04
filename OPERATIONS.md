@@ -47,4 +47,4 @@
 - Repos with `../` path dependencies pass `siblings:` so CI clones them next to the repo.
 - Keep `RUFF_PIN` in the workflow in step with `install_hooks.py`.
 - No CD: deploy targets are this Mac's launchd jobs and uv tools, which a cloud runner can't and shouldn't reach. Deploying is `make deploy`.
-- `http-retriever-service` (Node) is not yet covered; its checks are `npm test`, `npm run lint`, `npm audit`.
+- `http-retriever-service` (Node) has its own `.github/workflows/ci.yml` in the same shape: `npm ci`, lint, typecheck, vitest (failures as annotations), `npm audit`, gitleaks.
