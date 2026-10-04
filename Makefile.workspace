@@ -9,7 +9,7 @@ VERIFY_LOG ?= /tmp/make-verify-latest.log
 # same repo (2026-09-10).
 RUFF_PIN = ruff==0.16.7
 
-.PHONY: list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pipeline-publish pipeline-photos pipeline-weekly pre-commit push unpushed check-remotes help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
+.PHONY: deploy list test sync check fix verify verify-failures verify-failures-from-log verify-failure-summary status check-tools help-tools check-hooks show-coverage check-coverage stats usage ops-report test-pipeline pipeline-publish pipeline-photos pipeline-weekly pre-commit push unpushed check-remotes help use-local use-github use-local-selected use-github-selected source-preflight show-sources upgrade-locks check-standards check-installable
 
 usage:
 	@uv run pipeline-analysis/usage_stats.py
@@ -464,6 +464,13 @@ check:
 		echo "✗ $$FAILED repo(s) failed linting checks."; \
 		exit 1; \
 	fi
+
+# Make a repo's committed code the code that runs: reinstall its uv tool,
+# restart its KeepAlive LaunchAgent if it has one, smoke-test its entry points.
+# A commit is not live until this runs (see local-first-common/scripts/deploy.sh).
+deploy:
+	@test -n "$(REPO)" || (echo "usage: make deploy REPO=<repo>"; exit 1)
+	@local-first-common/scripts/deploy.sh $(REPO)
 
 verify:
 	@FAIL=0; SUMMARY=""; \
