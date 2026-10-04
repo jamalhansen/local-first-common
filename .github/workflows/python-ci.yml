@@ -1,7 +1,7 @@
 # Shared CI for every local-first fleet repo (added 2026-10-04).
 #
 # Mirrors the local pre-commit hook (install_hooks.py) so CI and the hook can't
-# disagree: pinned ruff with SIM115, pytest with the 50% coverage floor. Adds the
+# disagree: pinned ruff with SIM115 and B904 (raise-from inside except), pytest with the 50% coverage floor. Adds the
 # two checks no commit-time hook can do well: pip-audit over the locked
 # dependencies (new advisories appear without any commit, which is why callers
 # also run weekly) and gitleaks over the full git history.
@@ -72,7 +72,7 @@ jobs:
 
       - name: Lint
         id: lint
-        run: uv run --frozen --with "$RUFF_PIN" ruff check --extend-select SIM115 .
+        run: uv run --frozen --with "$RUFF_PIN" ruff check --extend-select SIM115,B904 .
 
       - name: Tests
         id: tests

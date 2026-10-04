@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.6"
+HOOK_VERSION = "1.7"
 
 # Pinned so `ruff`'s own default rule selection can't silently change based on
 # whichever version happens to be installed/on PATH on a given machine -- found
@@ -42,7 +42,7 @@ SCANNER="$HOME/projects/local-first/local-first-common/scripts/pre_commit_check.
 cd "$REPO_ROOT" || exit 1
 
 echo "Running ruff check..."
-uv run --with {RUFF_PIN} ruff check --extend-select SIM115 .
+uv run --with {RUFF_PIN} ruff check --extend-select SIM115,B904 .
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
     echo ""
