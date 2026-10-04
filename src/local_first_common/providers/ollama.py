@@ -181,7 +181,7 @@ class OllamaProvider(BaseProvider):
             )
             raise ConnectionError(
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
-            )
+            ) from exc
 
         result = (
             self._parse_json_response(content, response_model)
@@ -235,7 +235,7 @@ class OllamaProvider(BaseProvider):
             )
             raise ConnectionError(
                 f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
-            )
+            ) from exc
 
         result = (
             self._parse_json_response(content, response_model)

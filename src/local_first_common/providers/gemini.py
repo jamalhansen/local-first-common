@@ -42,10 +42,10 @@ class GeminiProvider(BaseProvider):
         try:
             from google import genai
             from google.genai import types
-        except ImportError:
+        except ImportError as err:
             raise RuntimeError(
                 "google-genai package is required for GeminiProvider. Install it with: uv add google-genai"
-            )
+            ) from err
 
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
@@ -73,7 +73,7 @@ class GeminiProvider(BaseProvider):
                 config=config,
             )
             content = response.text
-        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
+        except Exception as e:  # translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "not found" in err.lower() or "invalid" in err.lower():
                 logger.warning(
@@ -88,7 +88,7 @@ class GeminiProvider(BaseProvider):
                 raise RuntimeError(
                     f"Gemini model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
-                )
+                ) from e
             logger.warning(
                 "Gemini API request failed for %s: %s",
                 self.model,
@@ -98,7 +98,7 @@ class GeminiProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"Gemini API error: {e}")
+            raise RuntimeError(f"Gemini API error: {e}") from e
 
         result = (
             self._parse_json_response(content, response_model)
@@ -118,10 +118,10 @@ class GeminiProvider(BaseProvider):
         try:
             from google import genai
             from google.genai import types
-        except ImportError:
+        except ImportError as err:
             raise RuntimeError(
                 "google-genai package is required for GeminiProvider. Install it with: uv add google-genai"
-            )
+            ) from err
 
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
@@ -149,7 +149,7 @@ class GeminiProvider(BaseProvider):
                 config=config,
             )
             content = response.text
-        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
+        except Exception as e:  # translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "not found" in err.lower() or "invalid" in err.lower():
                 logger.warning(
@@ -164,7 +164,7 @@ class GeminiProvider(BaseProvider):
                 raise RuntimeError(
                     f"Gemini model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
-                )
+                ) from e
             logger.warning(
                 "Gemini API request failed for %s: %s",
                 self.model,
@@ -174,7 +174,7 @@ class GeminiProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"Gemini API error: {e}")
+            raise RuntimeError(f"Gemini API error: {e}") from e
 
         result = (
             self._parse_json_response(content, response_model)

@@ -116,7 +116,7 @@ class ClaudeCodeProvider(BaseProvider):
     ) -> str | dict[str, Any]:
         try:
             envelope = json.loads(stdout)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as err:
             logger.warning(
                 "claude CLI returned non-JSON output (exit %d): %s",
                 returncode,
@@ -125,7 +125,7 @@ class ClaudeCodeProvider(BaseProvider):
             )
             raise ClaudeCodeError(
                 f"claude CLI failed (exit {returncode}): {(stderr or stdout).strip()[:500]}"
-            )
+            ) from err
 
         # Same semantics as AnthropicProvider (uncached input only), so
         # processing_log totals stay comparable across the two.
@@ -179,8 +179,8 @@ class ClaudeCodeProvider(BaseProvider):
                 cwd=self.workdir,
                 check=False,
             )
-        except subprocess.TimeoutExpired:
-            raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s")
+        except subprocess.TimeoutExpired as err:
+            raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s") from err
         return self._handle_output(proc.stdout, proc.stderr, proc.returncode, response_model)
 
     async def _acomplete(
@@ -204,8 +204,8 @@ class ClaudeCodeProvider(BaseProvider):
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(user.encode()), timeout=self.timeout
             )
-        except TimeoutError:
-            raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s")
+        except TimeoutError as err:
+            raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s") from err
         finally:
             # Also covers cancellation: an orphaned `claude` keeps spending quota.
             if proc.returncode is None:

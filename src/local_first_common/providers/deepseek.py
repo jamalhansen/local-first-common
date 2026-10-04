@@ -86,7 +86,7 @@ class DeepSeekProvider(BaseProvider):
                 raise RuntimeError(
                     f"DeepSeek model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
-                )
+                ) from e
             logger.warning(
                 "DeepSeek API HTTP error for %s: %s",
                 self.model,
@@ -96,8 +96,8 @@ class DeepSeekProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"DeepSeek API error: {e}")
-        except Exception as e:  # noqa: BLE001 - translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
+            raise RuntimeError(f"DeepSeek API error: {e}") from e
+        except Exception as e:  # translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
             logger.warning(
                 "DeepSeek request failed for %s: %s",
                 self.model,
@@ -107,7 +107,7 @@ class DeepSeekProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"DeepSeek request failed: {e}")
+            raise RuntimeError(f"DeepSeek request failed: {e}") from e
 
         result = (
             self._parse_json_response(content, response_model)
@@ -156,7 +156,7 @@ class DeepSeekProvider(BaseProvider):
                 raise RuntimeError(
                     f"DeepSeek model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
-                )
+                ) from e
             logger.warning(
                 "DeepSeek API HTTP error for %s: %s",
                 self.model,
@@ -166,8 +166,8 @@ class DeepSeekProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"DeepSeek API error: {e}")
-        except Exception as e:  # noqa: BLE001 - translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
+            raise RuntimeError(f"DeepSeek API error: {e}") from e
+        except Exception as e:  # translating an arbitrary HTTP/SDK error into a provider-specific message; the underlying exception surface isn't guaranteed stable across versions
             logger.warning(
                 "DeepSeek request failed for %s: %s",
                 self.model,
@@ -177,7 +177,7 @@ class DeepSeekProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"DeepSeek request failed: {e}")
+            raise RuntimeError(f"DeepSeek request failed: {e}") from e
 
         result = (
             self._parse_json_response(content, response_model)

@@ -184,10 +184,10 @@ def get_persona(
         # Try root of config as a secondary fallback
         try:
             return load_persona(name, personas_dir=base_config)
-        except FileNotFoundError:
+        except FileNotFoundError as err:
             raise FileNotFoundError(
                 f"Persona '{name}' not found in vault or config for category '{category}'."
-            )
+            ) from err
 
 
 def list_personas(

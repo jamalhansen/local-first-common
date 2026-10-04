@@ -127,7 +127,7 @@ class AnthropicProvider(BaseProvider):
             self.input_tokens += message.usage.input_tokens
             self.output_tokens += message.usage.output_tokens
             content = _extract_text(message)
-        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
+        except Exception as e:  # translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "model" in err.lower() and (
                 "not found" in err.lower() or "invalid" in err.lower()
@@ -144,7 +144,7 @@ class AnthropicProvider(BaseProvider):
                 raise RuntimeError(
                     f"Anthropic model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
-                )
+                ) from e
             logger.warning(
                 "Anthropic API request failed for %s: %s",
                 self.model,
@@ -154,7 +154,7 @@ class AnthropicProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"Anthropic API error: {e}")
+            raise RuntimeError(f"Anthropic API error: {e}") from e
 
         result = (
             self._parse_json_response(content, response_model)
@@ -193,7 +193,7 @@ class AnthropicProvider(BaseProvider):
             self.input_tokens += message.usage.input_tokens
             self.output_tokens += message.usage.output_tokens
             content = _extract_text(message)
-        except Exception as e:  # noqa: BLE001 - translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
+        except Exception as e:  # translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
             if "model" in err.lower() and (
                 "not found" in err.lower() or "invalid" in err.lower()
@@ -210,7 +210,7 @@ class AnthropicProvider(BaseProvider):
                 raise RuntimeError(
                     f"Anthropic model '{self.model}' not found. "
                     f"Known models: {self.known_models}. See {self.models_url}"
-                )
+                ) from e
             logger.warning(
                 "Anthropic API request failed for %s: %s",
                 self.model,
@@ -220,7 +220,7 @@ class AnthropicProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise RuntimeError(f"Anthropic API error: {e}")
+            raise RuntimeError(f"Anthropic API error: {e}") from e
 
         result = (
             self._parse_json_response(content, response_model)
