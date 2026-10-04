@@ -25,8 +25,9 @@
 
 - **Every network call and subprocess has a timeout.**
 - **Every dependency pin carries its reason and the condition for lifting it.** The `click<8.3.2` pin had a reason but no exit condition, and quietly held a vulnerable version in 13 repos.
-- **Tests never depend on `~/.config`, synced files or installed-but-undeclared packages.** CI has none of them. Patch config-derived module globals in `conftest.py` (2026-10-04: 18 content-discovery tests only passed because the real feed list existed). Check locally with an empty home and an exact install:
-  `uv sync --frozen && HOME=$(mktemp -d) uv run --frozen pytest -q`
+- **Tests never depend on `~/.config`, synced files, API keys in the environment, or installed-but-undeclared packages.** CI has none of them. Patch config-derived module globals in `conftest.py` (2026-10-04: 18 content-discovery tests only passed because the real feed list existed) and set fake keys with `monkeypatch.setenv` (a DeepSeek test only passed because a real `DEEPSEEK_API_KEY` was exported). Check locally with an empty home, no keys, and an exact install:
+  `uv sync --frozen && env -u ANTHROPIC_API_KEY -u DEEPSEEK_API_KEY -u GEMINI_API_KEY -u GROQ_API_KEY -u OPENAI_API_KEY -u LLM_GATEWAY_URL HOME=$(mktemp -d) uv run --frozen pytest -q`
+- **CI failures are readable without logging in:** each failing test, and the tail of pytest's output, become annotations on the run (job logs need a login even on public repos).
 
 ## Dependencies
 
