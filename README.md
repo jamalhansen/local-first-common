@@ -195,16 +195,18 @@ Base class for LLM-based content scorers. Handles JSON parsing with XML fallback
 ```python
 from local_first_common.scoring import BaseScorer, ScoredItem
 
+
 class MyScorer(BaseScorer):
     system_prompt = "Return JSON with score, tags, summary, language."
+
 
 scorer = MyScorer()
 result = scorer.score(provider, user_message)
 # result: ScoredItem(score=0.85, tags=["ai"], summary="...", language="en") | None
 
 # Counters for tracking (wire to timed_run):
-scorer.xml_fallback_count   # times XML fallback was used
-scorer.parse_error_count    # times both JSON and XML failed
+scorer.xml_fallback_count  # times XML fallback was used
+scorer.parse_error_count  # times both JSON and XML failed
 ```
 
 ---
@@ -244,12 +246,12 @@ import frontmatter
 post = frontmatter.load(path)
 meta = ContentMetadata.from_metadata(post.metadata)
 
-meta.tags           # List[str] — bare "ai" string → ["ai"] automatically
-meta.category       # str — "[[Newsletter]]" or "uncategorized" (default)
+meta.tags  # List[str] — bare "ai" string → ["ai"] automatically
+meta.category  # str — "[[Newsletter]]" or "uncategorized" (default)
 meta.category_name  # str — strips brackets: "Newsletter"
-meta.published_date # Optional[datetime] — "" coerced to None
-meta.status         # str — defaults to "draft"
-meta.title          # Optional[str] — accepts both "title" and "Title" frontmatter keys
+meta.published_date  # Optional[datetime] — "" coerced to None
+meta.status  # str — defaults to "draft"
+meta.title  # Optional[str] — accepts both "title" and "Title" frontmatter keys
 
 # Write back — omits None fields and the "uncategorized" default
 post.metadata = meta.to_metadata()

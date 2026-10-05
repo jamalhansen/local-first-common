@@ -1,4 +1,5 @@
 """Tests for the shared Readwise Reader integration module."""
+
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -212,7 +213,10 @@ class TestListReaderDocuments:
     def test_optional_filters_included_when_provided(self):
         with patch("local_first_common.readwise.requests.get", return_value=_page([])) as mock_get:
             list_reader_documents(
-                "tok_abc", category="article", updated_after="2026-01-01", tag="ai",
+                "tok_abc",
+                category="article",
+                updated_after="2026-01-01",
+                tag="ai",
             )
         _, kwargs = mock_get.call_args
         params = kwargs["params"]
@@ -279,8 +283,10 @@ class TestListReaderRefs:
         limited = MagicMock()
         limited.status_code = 429
         limited.headers = {"Retry-After": "1"}
-        with patch("local_first_common.readwise.time.sleep") as mock_sleep, \
-             patch("local_first_common.readwise.requests.get", side_effect=[limited, _page([_DOC])]):
+        with (
+            patch("local_first_common.readwise.time.sleep") as mock_sleep,
+            patch("local_first_common.readwise.requests.get", side_effect=[limited, _page([_DOC])]),
+        ):
             refs = list_reader_refs("tok_abc")
         assert len(refs) == 1
         mock_sleep.assert_called_once_with(1)
@@ -323,8 +329,10 @@ class TestArchiveReaderDocument:
         limited.headers = {"Retry-After": "2"}
         ok_resp = MagicMock()
         ok_resp.status_code = 200
-        with patch("local_first_common.readwise.time.sleep") as mock_sleep, \
-             patch("local_first_common.readwise.requests.patch", side_effect=[limited, ok_resp]):
+        with (
+            patch("local_first_common.readwise.time.sleep") as mock_sleep,
+            patch("local_first_common.readwise.requests.patch", side_effect=[limited, ok_resp]),
+        ):
             assert archive_reader_document("tok_abc", "abc123") is True
         mock_sleep.assert_called_once_with(2)
 
@@ -332,8 +340,10 @@ class TestArchiveReaderDocument:
         limited = MagicMock()
         limited.status_code = 429
         limited.headers = {"Retry-After": "1"}
-        with patch("local_first_common.readwise.time.sleep"), \
-             patch("local_first_common.readwise.requests.patch", return_value=limited):
+        with (
+            patch("local_first_common.readwise.time.sleep"),
+            patch("local_first_common.readwise.requests.patch", return_value=limited),
+        ):
             assert archive_reader_document("tok_abc", "abc123") is False
 
     def test_returns_false_on_error_status(self):

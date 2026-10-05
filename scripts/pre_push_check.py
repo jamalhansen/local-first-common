@@ -17,19 +17,22 @@ from pathlib import Path
 
 # ── Checks ────────────────────────────────────────────────────────────────────
 
+
 def check_pyproject_paths(repo_path: Path) -> list[str]:
     """Check pyproject.toml for local path references that should be git URLs."""
     pyproject = repo_path / "pyproject.toml"
     if not pyproject.exists():
         return []
-    
+
     content = pyproject.read_text(encoding="utf-8")
     findings = []
-    
+
     # Flag anything pointing to ../local-first-common
     if 'path = "../local-first-common"' in content:
-        findings.append("  pyproject.toml: local path reference found for 'local-first-common'. Must be a git URL before push.")
-    
+        findings.append(
+            "  pyproject.toml: local path reference found for 'local-first-common'. Must be a git URL before push."
+        )
+
     return findings
 
 
@@ -52,6 +55,7 @@ def check_gitleaks(repo_path: Path) -> list[str]:
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
+
 
 def run_scan(repo_path: Path, verbose: bool = False) -> bool:
     """Run security checks. Returns True if clean, False if issues found."""
@@ -84,6 +88,7 @@ def run_scan(repo_path: Path, verbose: bool = False) -> bool:
 
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Pre-push security scanner for local-first projects")
     parser.add_argument("path", nargs="?", default=".", help="Repo path (default: current directory)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show passing checks too")

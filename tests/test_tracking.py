@@ -153,9 +153,7 @@ class TestLogRun:
 
     def test_failure_row(self, tmp_path):
         db = tmp_path / "test.duckdb"
-        log_run(
-            "my-tool", "phi4-mini", success=False, error_message="timeout", db_path=db
-        )
+        log_run("my-tool", "phi4-mini", success=False, error_message="timeout", db_path=db)
         row = _last_row(db)
         assert row["success"] is False
         assert row["error_message"] == "timeout"
@@ -280,9 +278,7 @@ class TestBatchedLogRun:
             for j in range(per_thread):
                 log_run("tool", f"model-{idx}", source_location=str(j), db_path=db)
 
-        threads = [
-            threading.Thread(target=worker, args=(i,)) for i in range(thread_count)
-        ]
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(thread_count)]
         for t in threads:
             t.start()
         for t in threads:
@@ -499,15 +495,16 @@ class TestTrackedFetch:
         db = tmp_path / "test.duckdb"
         tool = register_tool("test-tool", db_path=db)
 
-        with patch(
-            "local_first_common.http.fetch_url", return_value="<html>hello</html>"
-        ), tracked_fetch(
-            tool,
-            "https://example.com/article",
-            source_url="https://bsky.app/post/123",
-            source_platform="bluesky",
-            db_path=db,
-        ) as fetch:
+        with (
+            patch("local_first_common.http.fetch_url", return_value="<html>hello</html>"),
+            tracked_fetch(
+                tool,
+                "https://example.com/article",
+                source_url="https://bsky.app/post/123",
+                source_platform="bluesky",
+                db_path=db,
+            ) as fetch,
+        ):
             fetch.title = "Example Article"
 
         assert fetch.html == "<html>hello</html>"
@@ -529,9 +526,10 @@ class TestTrackedFetch:
         db = tmp_path / "test.duckdb"
         tool = register_tool("test-tool", db_path=db)
 
-        with patch(
-            "local_first_common.http.fetch_url", side_effect=RuntimeError("boom")
-        ), tracked_fetch(tool, "https://example.com/article", db_path=db):
+        with (
+            patch("local_first_common.http.fetch_url", side_effect=RuntimeError("boom")),
+            tracked_fetch(tool, "https://example.com/article", db_path=db),
+        ):
             pass
 
         row = _last_row(db, table="fetch_log")
@@ -544,15 +542,18 @@ class TestTrackedFetch:
 
         from local_first_common.http import FetchError
 
-        with patch(
-            "local_first_common.http.fetch_url",
-            side_effect=FetchError("403 Forbidden", status_code=403),
-        ), tracked_fetch(
-            tool,
-            "https://example.com/blocked",
-            source_platform="mastodon",
-            db_path=db,
-        ) as fetch:
+        with (
+            patch(
+                "local_first_common.http.fetch_url",
+                side_effect=FetchError("403 Forbidden", status_code=403),
+            ),
+            tracked_fetch(
+                tool,
+                "https://example.com/blocked",
+                source_platform="mastodon",
+                db_path=db,
+            ) as fetch,
+        ):
             pass  # fetch.html is None
 
         assert fetch.html is None
@@ -570,10 +571,13 @@ class TestTrackedFetch:
 
         from local_first_common.http import FetchError
 
-        with patch(
-            "local_first_common.http.fetch_url",
-            side_effect=FetchError("Read timed out", status_code=None),
-        ), tracked_fetch(tool, "https://slow.example.com/", db_path=db):
+        with (
+            patch(
+                "local_first_common.http.fetch_url",
+                side_effect=FetchError("Read timed out", status_code=None),
+            ),
+            tracked_fetch(tool, "https://slow.example.com/", db_path=db),
+        ):
             pass
 
         row = _last_row(db, table="fetch_log")
@@ -740,4 +744,3 @@ class TestTrackedCall:
         with tracked_call(tool, "readwise", "save", db_path=db) as call:
             call.success = True
         assert call.success is True
-

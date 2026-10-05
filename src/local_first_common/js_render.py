@@ -11,6 +11,7 @@ Optional dependency: install with `local-first-common[playwright]` and run
 not at module load, so a tool that never calls this never needs the browser
 installed at all — importing this module is always safe.
 """
+
 import logging
 from urllib.parse import urlparse
 

@@ -1,4 +1,5 @@
 """Tests for local_first_common.personas module."""
+
 import pytest
 import yaml
 

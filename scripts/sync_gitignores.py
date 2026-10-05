@@ -32,9 +32,7 @@ def sync_gitignore(repo_path: Path):
         existing_lines = set()
     else:
         with open(gitignore_path, "r") as f:
-            existing_lines = {
-                line.strip() for line in f if line.strip() and not line.startswith("#")
-            }
+            existing_lines = {line.strip() for line in f if line.strip() and not line.startswith("#")}
 
     missing = MASTER_IGNORES - existing_lines
     if missing:
@@ -50,11 +48,7 @@ def sync_gitignore(repo_path: Path):
 
 def main():
     workspace_root = Path(__file__).parent.parent.parent
-    repos = [
-        d
-        for d in workspace_root.iterdir()
-        if d.is_dir() and (d / "pyproject.toml").exists()
-    ]
+    repos = [d for d in workspace_root.iterdir() if d.is_dir() and (d / "pyproject.toml").exists()]
 
     print(f"Syncing standard .gitignore to {len(repos)} repos...")
     for repo in sorted(repos):

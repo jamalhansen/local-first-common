@@ -14,9 +14,7 @@ from rich.logging import RichHandler
 _DEFAULT_SYNC_PATH = Path("~/sync/logging/error_log.duckdb").expanduser()
 _DEFAULT_RETENTION_DAYS = 90
 
-_CREATE_OPERATIONAL_LOG_SEQUENCE = (
-    "CREATE SEQUENCE IF NOT EXISTS operational_log_id_seq START 1;"
-)
+_CREATE_OPERATIONAL_LOG_SEQUENCE = "CREATE SEQUENCE IF NOT EXISTS operational_log_id_seq START 1;"
 
 _CREATE_OPERATIONAL_LOG_TABLE = """
 CREATE TABLE IF NOT EXISTS operational_log (
@@ -135,8 +133,7 @@ class OperationalLogHandler(logging.Handler):
         extras = {
             k: v
             for k, v in record.__dict__.items()
-            if k not in _STANDARD_RECORD_ATTRS
-            and k not in {"tool_name", "source_location", "run_context"}
+            if k not in _STANDARD_RECORD_ATTRS and k not in {"tool_name", "source_location", "run_context"}
         }
         return _safe_json_dump(extras)
 

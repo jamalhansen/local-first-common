@@ -11,23 +11,24 @@ class ArticleMetadata(NamedTuple):
     author: str = ""
     published_date: str = ""
 
+
 def extract_metadata(html: str) -> ArticleMetadata:
     """Extract basic metadata from HTML meta tags.
-    
+
     Priority:
       title:       og:title  -> <title>
       description: og:description -> <meta name="description">
       date:        article:published_time -> datePublished -> og:article:published_time
     """
     soup = BeautifulSoup(html, "html.parser")
-    
+
     # Title
     og_title = soup.find("meta", attrs={"property": "og:title"})
     title = (og_title.get("content", "").strip() if og_title else "") or ""
     if not title:
         title_tag = soup.find("title")
         title = title_tag.get_text(strip=True) if title_tag else ""
-        
+
     # Suffix stripping (e.g. "Post Title - Site Name")
     if title:
         title = re.split(r"\s[-|–]\s", title)[0].strip()
@@ -52,6 +53,7 @@ def extract_metadata(html: str) -> ArticleMetadata:
             published = raw[:10]  # ISO date truncate
 
     return ArticleMetadata(title=title, description=description, published_date=published)
+
 
 def _select_content_container(soup: BeautifulSoup):
     """Strip chrome and return the element most likely to hold the article body.

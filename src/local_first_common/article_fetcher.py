@@ -49,15 +49,17 @@ HTTP_RETRIEVER_URL = os.environ.get("HTTP_RETRIEVER_URL") or None
 # discord.com is structurally incapable of it (an invite link is chat-app
 # chrome, never a fetchable article body, confirmed 2026-09-13 via a
 # thin-extraction capture that came back as 104 chars of "enable JavaScript").
-_DEFAULT_BLOCKED_DOMAINS: frozenset[str] = frozenset({
-    "medium.com",
-    "towardsdatascience.com",
-    "betterprogramming.pub",
-    "plainenglish.io",
-    "levelup.gitconnected.com",
-    "discord.com",
-    "discord.gg",
-})
+_DEFAULT_BLOCKED_DOMAINS: frozenset[str] = frozenset(
+    {
+        "medium.com",
+        "towardsdatascience.com",
+        "betterprogramming.pub",
+        "plainenglish.io",
+        "levelup.gitconnected.com",
+        "discord.com",
+        "discord.gg",
+    }
+)
 
 
 @dataclass
@@ -77,10 +79,7 @@ class FeedItem:
 def _is_blocked(netloc: str, blocked_domains: frozenset[str]) -> bool:
     """Return True if netloc matches any domain in the blocklist (exact or subdomain)."""
     host = netloc.lower().split(":")[0]  # strip port if present
-    return any(
-        host == domain or host.endswith("." + domain)
-        for domain in blocked_domains
-    )
+    return any(host == domain or host.endswith("." + domain) for domain in blocked_domains)
 
 
 _ENGAGEMENT_COUNT_RE = re.compile(r"^[\d.,]+[KMB]?$")
@@ -103,10 +102,7 @@ def _derive_metadata_from_rendered_text(text: str) -> tuple[str, str]:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     handle_idx = next((i for i, line in enumerate(lines) if _HANDLE_RE.fullmatch(line)), None)
     if handle_idx is not None:
-        rest = [
-            line for line in lines[handle_idx + 1:]
-            if not _ENGAGEMENT_COUNT_RE.fullmatch(line)
-        ]
+        rest = [line for line in lines[handle_idx + 1 :] if not _ENGAGEMENT_COUNT_RE.fullmatch(line)]
     else:
         rest = lines
     content = " ".join(rest) or text.strip()

@@ -1,4 +1,5 @@
 """Shared utilities for reading and writing Obsidian markdown vaults."""
+
 import re
 from collections.abc import Iterator
 from datetime import date, datetime, timedelta
@@ -23,7 +24,7 @@ def split_frontmatter(text: str) -> tuple[str, str] | None:
         return None
     for i in range(1, len(lines)):
         if lines[i].rstrip() in ("---", "..."):
-            return "".join(lines[1:i]), "".join(lines[i + 1:])
+            return "".join(lines[1:i]), "".join(lines[i + 1 :])
     return None
 
 
@@ -194,7 +195,7 @@ def load_personal_context(context_file: Path) -> str:
 
 def load_goal_context(vault_root: Path, target_date: date | None = None) -> str:
     """
-    Load goals matching target_date. 
+    Load goals matching target_date.
     Includes both the annual goal file and the monthly focus file if found.
     """
     if target_date is None:
@@ -202,7 +203,7 @@ def load_goal_context(vault_root: Path, target_date: date | None = None) -> str:
 
     year = target_date.strftime("%Y")
     month_str = target_date.strftime("%Y-%m")
-    
+
     yearly_path = vault_root / "Goals" / year / f"{year} Goals.md"
     monthly_path = vault_root / "Goals" / year / "_monthly" / f"{month_str}.md"
 

@@ -51,4 +51,3 @@ class TestIsolateTrackingDb:
         assert "LOCAL_FIRST_ERROR_LOG_DB" in os.environ
         assert "test_tracking.duckdb" in os.environ["LOCAL_FIRST_TRACKING_DB"]
         assert "test_error_log.duckdb" in os.environ["LOCAL_FIRST_ERROR_LOG_DB"]
-

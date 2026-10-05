@@ -7,6 +7,7 @@ a param declaration. Since the parameter is typed `bool`, this crashed every
 call to any command using it with "Invalid value for '--init-config':
 '--init-config' is not a valid boolean" -- not just --init-config itself.
 """
+
 from typing import Annotated
 
 import typer
@@ -22,9 +23,7 @@ def _make_app():
 
     @app.command()
     def run(
-        init_config: Annotated[
-            bool, init_config_option("test-tool", {"provider": "local"})
-        ] = False,
+        init_config: Annotated[bool, init_config_option("test-tool", {"provider": "local"})] = False,
     ):
         typer.echo("ran normally")
 
@@ -95,7 +94,6 @@ class TestJsonOption:
         res3 = runner.invoke(app, ["-j"])
         assert res3.exit_code == 0
         assert '{"status": "ok"}' in res3.output
-
 
 
 class TestModelAliases:

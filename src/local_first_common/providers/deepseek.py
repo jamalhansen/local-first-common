@@ -28,13 +28,9 @@ class DeepSeekProvider(BaseProvider):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not self.api_key:
-            raise RuntimeError(
-                "DEEPSEEK_API_KEY is required. Set it as an environment variable."
-            )
+            raise RuntimeError("DEEPSEEK_API_KEY is required. Set it as an environment variable.")
 
-    def _build_payload(
-        self, system: str, user: str, template: str, is_json: bool
-    ) -> dict[str, Any]:
+    def _build_payload(self, system: str, user: str, template: str, is_json: bool) -> dict[str, Any]:
         actual_system = system
         if template:
             actual_system += f"\n\nYou MUST return a valid JSON object matching this structure:\n{template}\nDO NOT include any other text."
@@ -84,8 +80,7 @@ class DeepSeekProvider(BaseProvider):
                     },
                 )
                 raise RuntimeError(
-                    f"DeepSeek model '{self.model}' not found. "
-                    f"Known models: {self.known_models}. See {self.models_url}"
+                    f"DeepSeek model '{self.model}' not found. Known models: {self.known_models}. See {self.models_url}"
                 ) from e
             logger.warning(
                 "DeepSeek API HTTP error for %s: %s",
@@ -109,11 +104,7 @@ class DeepSeekProvider(BaseProvider):
             )
             raise RuntimeError(f"DeepSeek request failed: {e}") from e
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result
 
@@ -135,9 +126,7 @@ class DeepSeekProvider(BaseProvider):
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    self._api_url, json=payload, headers=headers
-                )
+                response = await client.post(self._api_url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
@@ -154,8 +143,7 @@ class DeepSeekProvider(BaseProvider):
                     },
                 )
                 raise RuntimeError(
-                    f"DeepSeek model '{self.model}' not found. "
-                    f"Known models: {self.known_models}. See {self.models_url}"
+                    f"DeepSeek model '{self.model}' not found. Known models: {self.known_models}. See {self.models_url}"
                 ) from e
             logger.warning(
                 "DeepSeek API HTTP error for %s: %s",
@@ -179,10 +167,6 @@ class DeepSeekProvider(BaseProvider):
             )
             raise RuntimeError(f"DeepSeek request failed: {e}") from e
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result

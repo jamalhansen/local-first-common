@@ -64,4 +64,3 @@ def no_real_network(monkeypatch, request):
 
     for verb in ("get", "post", "patch", "put", "delete", "request"):
         monkeypatch.setattr(requests, verb, blocked, raising=False)
-

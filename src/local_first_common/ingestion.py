@@ -1,4 +1,5 @@
 """Unified ingestion for local files and URLs."""
+
 import logging
 from pathlib import Path
 
@@ -13,25 +14,25 @@ logger = logging.getLogger(__name__)
 
 def ingest_any(source: str, tool: Tool | None = None) -> tuple[str, str]:
     """Ingest content from a URL or a local file. Returns (title, content).
-    
+
     Args:
         source: A URL (starting with http) or a local file path.
         tool: Optional tracking Tool object to log the fetch.
-        
+
     Returns:
         A tuple of (title, content).
-        
+
     Raises:
         FileNotFoundError: If a local source does not exist.
         RuntimeError: If a URL fetch fails.
     """
     if source.startswith(("http://", "https://")):
         return ingest_url(source, tool=tool)
-    
+
     path = Path(source).expanduser()
     if not path.exists():
         raise FileNotFoundError(f"Source not found: {source}")
-        
+
     return ingest_file(path)
 
 
@@ -40,11 +41,11 @@ def ingest_url(url: str, tool: Tool | None = None) -> tuple[str, str]:
     url = clean_url(url)
     # Use a dummy tool if none provided to satisfy tracked_fetch requirement
     _tool = tool or Tool(name="ingestion", id=None)
-    
+
     with tracked_fetch(_tool, url) as fetch:
         if fetch.html is None:
             raise RuntimeError(f"Failed to fetch {url}: {fetch.error_message}")
-        
+
         metadata = extract_metadata(fetch.html)
         content = extract_main_content(fetch.html)
         title = metadata.title or "Untitled URL"

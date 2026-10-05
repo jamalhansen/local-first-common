@@ -44,9 +44,7 @@ def _extract_text(message: Any) -> str:
     Some models (e.g. extended-thinking-capable ones) return a ThinkingBlock
     ahead of the TextBlock, so content[0] is not reliably the text block.
     """
-    return "".join(
-        block.text for block in message.content if hasattr(block, "text")
-    )
+    return "".join(block.text for block in message.content if hasattr(block, "text"))
 
 
 class AnthropicProvider(BaseProvider):
@@ -68,9 +66,7 @@ class AnthropicProvider(BaseProvider):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY is required. Set it as an environment variable."
-            )
+            raise RuntimeError("ANTHROPIC_API_KEY is required. Set it as an environment variable.")
         self.input_tokens: int = 0
         self.output_tokens: int = 0
 
@@ -80,9 +76,7 @@ class AnthropicProvider(BaseProvider):
             actual_system += f"\n\nYou MUST return a valid JSON object matching this structure:\n{template}\nDO NOT include any other text."
         return actual_system
 
-    def _build_messages(
-        self, user: str, images: list[str] | None = None
-    ) -> list[dict]:
+    def _build_messages(self, user: str, images: list[str] | None = None) -> list[dict]:
         content: list[dict] = [{"type": "text", "text": user}]
         if images:
             for img in images:
@@ -106,9 +100,7 @@ class AnthropicProvider(BaseProvider):
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
         if _Anthropic is None:
-            raise RuntimeError(
-                "anthropic package is required for AnthropicProvider. Install it with: uv add anthropic"
-            )
+            raise RuntimeError("anthropic package is required for AnthropicProvider. Install it with: uv add anthropic")
 
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
@@ -129,9 +121,7 @@ class AnthropicProvider(BaseProvider):
             content = _extract_text(message)
         except Exception as e:  # translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
-            if "model" in err.lower() and (
-                "not found" in err.lower() or "invalid" in err.lower()
-            ):
+            if "model" in err.lower() and ("not found" in err.lower() or "invalid" in err.lower()):
                 logger.warning(
                     "Anthropic model lookup failed for %s: %s",
                     self.model,
@@ -156,11 +146,7 @@ class AnthropicProvider(BaseProvider):
             )
             raise RuntimeError(f"Anthropic API error: {e}") from e
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result
 
@@ -172,9 +158,7 @@ class AnthropicProvider(BaseProvider):
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
         if _AsyncAnthropic is None:
-            raise RuntimeError(
-                "anthropic package is required for AnthropicProvider. Install it with: uv add anthropic"
-            )
+            raise RuntimeError("anthropic package is required for AnthropicProvider. Install it with: uv add anthropic")
 
         template = self._get_example_json(response_model) if response_model else ""
         self._debug_print_request(template, system, user)
@@ -195,9 +179,7 @@ class AnthropicProvider(BaseProvider):
             content = _extract_text(message)
         except Exception as e:  # translating an arbitrary SDK error into a provider-specific message; the SDK's own exception surface isn't guaranteed stable across versions
             err = str(e)
-            if "model" in err.lower() and (
-                "not found" in err.lower() or "invalid" in err.lower()
-            ):
+            if "model" in err.lower() and ("not found" in err.lower() or "invalid" in err.lower()):
                 logger.warning(
                     "Anthropic model lookup failed for %s: %s",
                     self.model,
@@ -222,10 +204,6 @@ class AnthropicProvider(BaseProvider):
             )
             raise RuntimeError(f"Anthropic API error: {e}") from e
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result

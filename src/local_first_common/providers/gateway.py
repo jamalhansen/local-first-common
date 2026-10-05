@@ -15,6 +15,7 @@ accepts an `images` field (base64-encoded, no data-URI prefix -- the same
 convention BaseProvider's own `images` parameter already uses), forwarded
 through to whichever real provider handles the request server-side.
 """
+
 import logging
 import os
 from typing import Any, ClassVar
@@ -91,9 +92,7 @@ class GatewayProvider(BaseProvider):
             f"structure:\n{template}\nDO NOT include any other text."
         )
 
-    def _payload(
-        self, system: str, user: str, response_model: Any | None, images: list[str] | None
-    ) -> dict:
+    def _payload(self, system: str, user: str, response_model: Any | None, images: list[str] | None) -> dict:
         payload = {
             "provider": self.target_provider,
             "model": self.model,

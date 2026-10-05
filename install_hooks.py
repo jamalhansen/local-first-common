@@ -134,14 +134,10 @@ def install_hook(repo: Path, hook_name: str, script: str, marker: str) -> bool:
         else:
             backup = hook_path.with_suffix(".pre-security-backup")
             hook_path.rename(backup)
-            print(
-                f"  ~ {repo.name}/{hook_name}: backed up existing hook to {backup.name}"
-            )
+            print(f"  ~ {repo.name}/{hook_name}: backed up existing hook to {backup.name}")
 
     hook_path.write_text(script)
-    hook_path.chmod(
-        hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
-    )
+    hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     print(f"  ✓ {repo.name}/{hook_name}: installed (v{HOOK_VERSION})")
     return True
 
@@ -155,12 +151,8 @@ def install_hooks(repo: Path) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        "--all", action="store_true", help="Install in all local-first repos"
-    )
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--all", action="store_true", help="Install in all local-first repos")
     parser.add_argument("--repo", help="Install in a specific repo path")
     args = parser.parse_args()
 

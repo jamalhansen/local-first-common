@@ -73,15 +73,11 @@ class BaseProvider(ABC):
         """Exponential backoff in seconds for a given retry attempt index."""
         return 5 * (2**attempt)
 
-    def _should_retry_rate_limit(
-        self, error: Exception, attempt: int, rate_limit_retries: int
-    ) -> bool:
+    def _should_retry_rate_limit(self, error: Exception, attempt: int, rate_limit_retries: int) -> bool:
         """Policy decision for rate-limit retries."""
         return self._is_rate_limit_error(error) and attempt < rate_limit_retries
 
-    def _should_retry_schema(
-        self, error: Exception, attempt: int, max_retries: int
-    ) -> bool:
+    def _should_retry_schema(self, error: Exception, attempt: int, max_retries: int) -> bool:
         """Policy decision for schema/parse retries in complete()."""
         return attempt < max_retries and not self._is_rate_limit_error(error)
 
@@ -89,8 +85,7 @@ class BaseProvider(ABC):
     def _build_retry_prompt(user: str, error: Exception) -> str:
         """Inject previous error into user prompt for correction retries."""
         return (
-            user
-            + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{error}\n\nPlease fix the response to match the schema exactly."
+            user + f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{error}\n\nPlease fix the response to match the schema exactly."
         )
 
     def _complete_with_backoff(
@@ -107,9 +102,7 @@ class BaseProvider(ABC):
         """
         for attempt in range(rate_limit_retries + 1):
             try:
-                return self._complete(
-                    system, user, response_model=response_model, images=images
-                )
+                return self._complete(system, user, response_model=response_model, images=images)
             except Exception as e:
                 if self._should_retry_rate_limit(e, attempt, rate_limit_retries):
                     wait = self._rate_limit_wait_seconds(attempt)
@@ -141,9 +134,7 @@ class BaseProvider(ABC):
         """Async version of _complete_with_backoff."""
         for attempt in range(rate_limit_retries + 1):
             try:
-                return await self._acomplete(
-                    system, user, response_model=response_model, images=images
-                )
+                return await self._acomplete(system, user, response_model=response_model, images=images)
             except Exception as e:
                 if self._should_retry_rate_limit(e, attempt, rate_limit_retries):
                     wait = self._rate_limit_wait_seconds(attempt)
@@ -182,9 +173,7 @@ class BaseProvider(ABC):
 
         for attempt in range(max_retries + 1):
             try:
-                result = self._complete_with_backoff(
-                    system, current_user, response_model, images, rate_limit_retries
-                )
+                result = self._complete_with_backoff(system, current_user, response_model, images, rate_limit_retries)
 
                 if response_model and hasattr(response_model, "model_validate"):
                     result = response_model.model_validate(result)

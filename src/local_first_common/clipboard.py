@@ -14,4 +14,5 @@ def get_clipboard() -> str:
         return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):
         import pyperclip
+
         return pyperclip.paste().strip()

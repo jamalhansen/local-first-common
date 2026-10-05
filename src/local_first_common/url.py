@@ -9,16 +9,22 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 _ARXIV_PATH_RE = re.compile(r"^/(?:abs|html|pdf)/([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?$")
 
 # Query parameters that are tracking-only and carry no page identity.
-_TRACKING_PARAMS: frozenset[str] = frozenset({
-    # UTM (Google Analytics / social scheduling tools)
-    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    # Platform click-tracking
-    "fbclid",   # Facebook
-    "gclid",    # Google Ads
-    "mc_eid",   # Mailchimp
-    # NOTE: "ref" and "source" intentionally excluded — too generic.
-    # e.g. GitHub uses ?ref=main for branch refs; many sites use ?source= legitimately.
-})
+_TRACKING_PARAMS: frozenset[str] = frozenset(
+    {
+        # UTM (Google Analytics / social scheduling tools)
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "utm_term",
+        "utm_content",
+        # Platform click-tracking
+        "fbclid",  # Facebook
+        "gclid",  # Google Ads
+        "mc_eid",  # Mailchimp
+        # NOTE: "ref" and "source" intentionally excluded — too generic.
+        # e.g. GitHub uses ?ref=main for branch refs; many sites use ?source= legitimately.
+    }
+)
 
 
 def clean_url(url: str) -> str:
@@ -71,7 +77,7 @@ def normalize_url(url: str) -> str:
             scheme = "https"
 
         if netloc == "doi.org" and path.lower().startswith("/10.48550/arxiv."):
-            arxiv_id = path[len("/10.48550/arxiv."):]
+            arxiv_id = path[len("/10.48550/arxiv.") :]
             netloc = "arxiv.org"
             path = f"/abs/{arxiv_id}"
 

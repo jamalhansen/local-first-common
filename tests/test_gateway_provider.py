@@ -1,4 +1,5 @@
 """Tests for GatewayProvider, and for resolve_provider()'s delegation to it."""
+
 import json
 from unittest.mock import patch
 
@@ -135,9 +136,7 @@ class TestGatewayProviderComplete:
         """The gateway is a dumb text transport -- schema-awareness stays entirely client-side."""
         response = _FakeResponse(200, {"text": json.dumps({"score": 1.0, "label": "x"})})
         with patch("httpx.post", return_value=response) as mock_post:
-            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete(
-                "s", "u", response_model=Answer
-            )
+            GatewayProvider("http://127.0.0.1:8788", "anthropic").complete("s", "u", response_model=Answer)
         sent = mock_post.call_args.kwargs["json"]
         assert set(sent.keys()) == {"provider", "model", "system", "user"}
 

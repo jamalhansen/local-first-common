@@ -1,4 +1,5 @@
 """Tests for local_first_common.scoring — BaseScorer and ScoredItem."""
+
 import json
 from unittest.mock import MagicMock
 
@@ -11,28 +12,29 @@ from local_first_common.testing import MockProvider
 # Concrete subclass for testing
 # ---------------------------------------------------------------------------
 
+
 class SimpleScorer(BaseScorer):
     system_prompt = "You are a test scorer. Return JSON."
 
 
-VALID_JSON_RESPONSE = json.dumps({
-    "score": 0.85,
-    "tags": ["ai", "python"],
-    "summary": "A useful article about AI.",
-    "language": "en",
-})
+VALID_JSON_RESPONSE = json.dumps(
+    {
+        "score": 0.85,
+        "tags": ["ai", "python"],
+        "summary": "A useful article about AI.",
+        "language": "en",
+    }
+)
 
 VALID_XML_RESPONSE = (
-    "<score>0.75</score>"
-    "<tags>ai, llm</tags>"
-    "<summary>XML fallback test.</summary>"
-    "<language>en</language>"
+    "<score>0.75</score><tags>ai, llm</tags><summary>XML fallback test.</summary><language>en</language>"
 )
 
 
 # ---------------------------------------------------------------------------
 # ScoredItem
 # ---------------------------------------------------------------------------
+
 
 class TestScoredItem:
     def test_fields(self):
@@ -50,6 +52,7 @@ class TestScoredItem:
 # ---------------------------------------------------------------------------
 # BaseScorer.score()
 # ---------------------------------------------------------------------------
+
 
 class TestBaseScorerScore:
     def test_valid_json_returns_scored_item(self):
@@ -77,6 +80,7 @@ class TestBaseScorerScore:
 # BaseScorer._parse_response()
 # ---------------------------------------------------------------------------
 
+
 class TestParseResponse:
     def setup_method(self):
         self.scorer = SimpleScorer()
@@ -101,22 +105,14 @@ class TestParseResponse:
 
     def test_xml_tags_as_json_array(self):
         raw = (
-            '<score>0.6</score>'
-            '<tags>["machine learning", "nlp"]</tags>'
-            '<summary>Test.</summary>'
-            '<language>en</language>'
+            '<score>0.6</score><tags>["machine learning", "nlp"]</tags><summary>Test.</summary><language>en</language>'
         )
         result = self.scorer._parse_response(raw)
         assert result is not None
         assert result.tags == ["machine learning", "nlp"]
 
     def test_xml_tags_as_comma_list(self):
-        raw = (
-            '<score>0.6</score>'
-            '<tags>sql, duckdb</tags>'
-            '<summary>Test.</summary>'
-            '<language>en</language>'
-        )
+        raw = "<score>0.6</score><tags>sql, duckdb</tags><summary>Test.</summary><language>en</language>"
         result = self.scorer._parse_response(raw)
         assert result is not None
         assert result.tags == ["sql", "duckdb"]

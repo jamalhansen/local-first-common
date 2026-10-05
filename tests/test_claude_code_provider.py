@@ -44,7 +44,10 @@ def provider():
 class TestConstruction:
     def test_missing_binary_raises(self, monkeypatch):
         monkeypatch.delenv("CLAUDE_CODE_BINARY", raising=False)
-        with patch("local_first_common.providers.claude_code.shutil.which", return_value=None), pytest.raises(RuntimeError, match="claude CLI not found"):
+        with (
+            patch("local_first_common.providers.claude_code.shutil.which", return_value=None),
+            pytest.raises(RuntimeError, match="claude CLI not found"),
+        ):
             ClaudeCodeProvider()
 
     def test_binary_from_env(self, monkeypatch):
@@ -121,11 +124,17 @@ class TestComplete:
         assert run.call_count == 2  # schema retry only, no rate-limit backoff loop
 
     def test_non_json_output_raises(self, provider):
-        with patch("subprocess.run", return_value=_proc("", returncode=1, stderr="not logged in")), pytest.raises(RuntimeError, match="not logged in"):
+        with (
+            patch("subprocess.run", return_value=_proc("", returncode=1, stderr="not logged in")),
+            pytest.raises(RuntimeError, match="not logged in"),
+        ):
             provider._complete("sys", "x")
 
     def test_timeout_raises(self, provider):
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=1)), pytest.raises(RuntimeError, match="timed out"):
+        with (
+            patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=1)),
+            pytest.raises(RuntimeError, match="timed out"),
+        ):
             provider._complete("sys", "x")
 
     def test_images_rejected(self, provider):
@@ -139,7 +148,10 @@ class TestAcompleteCancellation:
         proc.returncode = None
         proc.communicate = AsyncMock(side_effect=asyncio.CancelledError)
         proc.wait = AsyncMock()
-        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), pytest.raises(asyncio.CancelledError):
+        with (
+            patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)),
+            pytest.raises(asyncio.CancelledError),
+        ):
             asyncio.run(provider._acomplete("sys", "x"))
         proc.kill.assert_called_once()
 

@@ -319,28 +319,20 @@ def _ensure_schema(conn) -> None:
     conn.execute(_CREATE_SEQUENCE)
     conn.execute(_CREATE_TABLE)
     # Migrate existing DBs that predate the xml_fallbacks/parse_errors columns
-    conn.execute(
-        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS xml_fallbacks INTEGER;"
-    )
-    conn.execute(
-        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS parse_errors INTEGER;"
-    )
+    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS xml_fallbacks INTEGER;")
+    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS parse_errors INTEGER;")
     # Migrate existing DBs that predate the provider column (2026-09-20).
     # NULL for every row logged before this and for any caller that doesn't
     # pass provider= -- not every tool call site has been updated to pass it,
     # only the ones that already know their provider for free (the gateway).
-    conn.execute(
-        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS provider VARCHAR;"
-    )
+    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS provider VARCHAR;")
     # Migrate existing DBs that predate the via_gateway column (2026-09-20).
     # TRUE only on the row llm-gateway-service logs for its own request
     # handling -- lets a reader tell that row apart from the calling tool's
     # own timed_run() row for the exact same logical call (every gateway-
     # routed call produces both), which was silently double-counting fleet
     # activity and model/provider usage totals before this column existed.
-    conn.execute(
-        "ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS via_gateway BOOLEAN;"
-    )
+    conn.execute("ALTER TABLE processing_log ADD COLUMN IF NOT EXISTS via_gateway BOOLEAN;")
     conn.execute(_CREATE_TOOLS_SEQUENCE)
     conn.execute(_CREATE_TOOLS_TABLE)
     conn.execute(_CREATE_FETCH_LOG_SEQUENCE)
@@ -366,7 +358,6 @@ def _persist_run_payloads(
     if not payloads:
         return True
     try:
-
         conn = _connect_with_retry(path)
         try:
             _ensure_schema(conn)
@@ -739,7 +730,6 @@ def register_tool(name: str, db_path: str | Path | None = None) -> "Tool":
     start = time.monotonic()
     write_ok = False
     try:
-
         path = _resolve_db_path(db_path)
         conn = _connect_with_retry(path)
         try:
@@ -823,16 +813,13 @@ class _FetchContext:
         start = time.monotonic()
         write_ok = False
         try:
-
             path = _resolve_db_path(self.db_path)
             conn = _connect_with_retry(path)
             try:
                 _ensure_schema(conn)
                 tool_id = self.tool.id
                 if self.tool.name:
-                    row = conn.execute(
-                        "SELECT id FROM tools WHERE id = ?;", [self.tool.id]
-                    ).fetchone()
+                    row = conn.execute("SELECT id FROM tools WHERE id = ?;", [self.tool.id]).fetchone()
                     if not row:
                         conn.execute(_UPSERT_TOOL, [self.tool.name])
                         row = conn.execute(_SELECT_TOOL_ID, [self.tool.name]).fetchone()
@@ -925,7 +912,6 @@ class _ApiCallContext:
         start = time.monotonic()
         write_ok = False
         try:
-
             path = _resolve_db_path(self.db_path)
             conn = _connect_with_retry(path)
             try:

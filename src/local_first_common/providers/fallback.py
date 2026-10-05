@@ -98,9 +98,7 @@ class FallbackProvider(BaseProvider):
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
         try:
-            result = self.primary._complete(
-                system, user, response_model=response_model, images=images
-            )
+            result = self.primary._complete(system, user, response_model=response_model, images=images)
             self._active = self.primary
             return result
         except _FAILOVER_EXCEPTIONS as exc:
@@ -118,9 +116,7 @@ class FallbackProvider(BaseProvider):
             self._emit_status(
                 f"  [fallback] Local model failed ({exc}). Failing over to {self.fallback.__class__.__name__} ({self.fallback.model})..."
             )
-            result = self.fallback._complete(
-                system, user, response_model=response_model, images=images
-            )
+            result = self.fallback._complete(system, user, response_model=response_model, images=images)
             self._active = self.fallback
             return result
 
@@ -132,9 +128,7 @@ class FallbackProvider(BaseProvider):
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
         try:
-            result = await self.primary._acomplete(
-                system, user, response_model=response_model, images=images
-            )
+            result = await self.primary._acomplete(system, user, response_model=response_model, images=images)
             self._active = self.primary
             return result
         except _FAILOVER_EXCEPTIONS as exc:
@@ -152,8 +146,6 @@ class FallbackProvider(BaseProvider):
             self._emit_status(
                 f"  [fallback] Local model failed ({exc}). Failing over to {self.fallback.__class__.__name__} ({self.fallback.model})..."
             )
-            result = await self.fallback._acomplete(
-                system, user, response_model=response_model, images=images
-            )
+            result = await self.fallback._acomplete(system, user, response_model=response_model, images=images)
             self._active = self.fallback
             return result

@@ -1,6 +1,5 @@
 """Tests for model tiering and local-to-cloud automatic fallback."""
 
-
 from local_first_common.cli import resolve_provider
 from local_first_common.providers.base import BaseProvider
 from local_first_common.providers.errors import ConnectionError
@@ -238,4 +237,3 @@ def test_pydantic_ai_tier_build(monkeypatch):
     model = build_model("anthropic", tier="reasoning")
     assert hasattr(model, "model_name")
     assert "claude-sonnet-5" in getattr(model, "model_name", "")
-

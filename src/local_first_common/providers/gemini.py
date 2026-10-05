@@ -28,9 +28,7 @@ class GeminiProvider(BaseProvider):
         super().__init__(model=model, debug=debug)
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY is required. Set it as an environment variable."
-            )
+            raise RuntimeError("GEMINI_API_KEY is required. Set it as an environment variable.")
 
     def _complete(
         self,
@@ -57,14 +55,10 @@ class GeminiProvider(BaseProvider):
             contents: list[Any] = [user]
             if images:
                 for img in images:
-                    contents.append(
-                        types.Part.from_bytes(data=base64.b64decode(img), mime_type="image/jpeg")
-                    )
+                    contents.append(types.Part.from_bytes(data=base64.b64decode(img), mime_type="image/jpeg"))
 
             if response_model:
-                contents[0] += (
-                    f"\n\nReturn a valid JSON object matching this structure:\n{template}"
-                )
+                contents[0] += f"\n\nReturn a valid JSON object matching this structure:\n{template}"
                 config.response_mime_type = "application/json"
 
             response = client.models.generate_content(
@@ -86,8 +80,7 @@ class GeminiProvider(BaseProvider):
                     },
                 )
                 raise RuntimeError(
-                    f"Gemini model '{self.model}' not found. "
-                    f"Known models: {self.known_models}. See {self.models_url}"
+                    f"Gemini model '{self.model}' not found. Known models: {self.known_models}. See {self.models_url}"
                 ) from e
             logger.warning(
                 "Gemini API request failed for %s: %s",
@@ -100,11 +93,7 @@ class GeminiProvider(BaseProvider):
             )
             raise RuntimeError(f"Gemini API error: {e}") from e
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result
 
@@ -133,14 +122,10 @@ class GeminiProvider(BaseProvider):
             contents: list[Any] = [user]
             if images:
                 for img in images:
-                    contents.append(
-                        types.Part.from_bytes(data=base64.b64decode(img), mime_type="image/jpeg")
-                    )
+                    contents.append(types.Part.from_bytes(data=base64.b64decode(img), mime_type="image/jpeg"))
 
             if response_model:
-                contents[0] += (
-                    f"\n\nReturn a valid JSON object matching this structure:\n{template}"
-                )
+                contents[0] += f"\n\nReturn a valid JSON object matching this structure:\n{template}"
                 config.response_mime_type = "application/json"
 
             response = await client.aio.models.generate_content(
@@ -162,8 +147,7 @@ class GeminiProvider(BaseProvider):
                     },
                 )
                 raise RuntimeError(
-                    f"Gemini model '{self.model}' not found. "
-                    f"Known models: {self.known_models}. See {self.models_url}"
+                    f"Gemini model '{self.model}' not found. Known models: {self.known_models}. See {self.models_url}"
                 ) from e
             logger.warning(
                 "Gemini API request failed for %s: %s",
@@ -176,10 +160,6 @@ class GeminiProvider(BaseProvider):
             )
             raise RuntimeError(f"Gemini API error: {e}") from e
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result

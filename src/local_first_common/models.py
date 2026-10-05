@@ -15,6 +15,7 @@ class ContentMetadata(BaseModel):
     that still need categorising.  The sentinel is intentionally NOT a wikilink
     (there is no ``[[Uncategorized]]`` template).
     """
+
     model_config = ConfigDict(
         extra="allow",
         populate_by_name=True,

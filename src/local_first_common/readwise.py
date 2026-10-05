@@ -130,7 +130,9 @@ def save_to_readwise(
             call.error_message = resp.text[:200]
             logger.warning(
                 "Readwise API returned %s for %s: %s",
-                resp.status_code, url, resp.text[:200],
+                resp.status_code,
+                url,
+                resp.text[:200],
             )
             return False
         except requests.RequestException as e:
@@ -234,7 +236,8 @@ def list_reader_documents(
             if resp.status_code != 200:
                 logger.warning(
                     "Readwise API returned %s listing documents: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
                 call.success = False
                 call.error_message = resp.text[:200]
@@ -318,7 +321,8 @@ def list_reader_refs(
             if resp.status_code != 200:
                 logger.warning(
                     "Readwise API returned %s listing documents: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
                 call.success = False
                 call.error_message = resp.text[:200]
@@ -394,7 +398,9 @@ def archive_reader_document(
             call.error_message = resp.text[:200]
             logger.warning(
                 "Readwise API returned %s archiving %s: %s",
-                resp.status_code, doc_id, resp.text[:200],
+                resp.status_code,
+                doc_id,
+                resp.text[:200],
             )
             return False
 

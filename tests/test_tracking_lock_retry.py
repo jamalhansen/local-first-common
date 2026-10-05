@@ -1,4 +1,5 @@
 """A second process holding processing_log.duckdb's write lock must not drop our row (2026-10-04)."""
+
 import subprocess
 import sys
 import textwrap
@@ -35,9 +36,7 @@ def test_log_run_waits_for_a_short_lock_instead_of_dropping_the_row(tmp_path):
     stats = tracking.get_tracking_write_stats()
     assert stats["lock_retried"] >= 1
     assert stats["lock_gave_up"] == 0
-    rows = duckdb.connect(str(db), read_only=True).execute(
-        "SELECT tool_name FROM processing_log"
-    ).fetchall()
+    rows = duckdb.connect(str(db), read_only=True).execute("SELECT tool_name FROM processing_log").fetchall()
     assert rows == [("lock-test",)]
 
 

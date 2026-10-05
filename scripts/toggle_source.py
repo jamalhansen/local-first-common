@@ -31,7 +31,9 @@ LOCAL_VALUE = 'local-first-common = {path = "../local-first-common", editable = 
 # When restoring the git source we preserve the original rev/branch key so
 # round-tripping doesn't produce a noisy diff.  We stash the original value
 # per-repo while switching to local and restore it on the way back.
-_GITHUB_VALUE_DEFAULT = 'local-first-common = { git = "https://github.com/jamalhansen/local-first-common.git", branch = "main" }'
+_GITHUB_VALUE_DEFAULT = (
+    'local-first-common = { git = "https://github.com/jamalhansen/local-first-common.git", branch = "main" }'
+)
 
 
 def _original_git_line(text: str) -> str:
@@ -44,11 +46,7 @@ SKIP_REPOS = {"local-first-common", "local-ai-tool-template", "claude-skills"}
 
 
 def find_repos(workspace: Path) -> list[Path]:
-    return sorted(
-        p.parent
-        for p in workspace.glob("*/pyproject.toml")
-        if p.parent.name not in SKIP_REPOS
-    )
+    return sorted(p.parent for p in workspace.glob("*/pyproject.toml") if p.parent.name not in SKIP_REPOS)
 
 
 def _select_repos(workspace: Path, repo_names: list[str]) -> list[Path]:

@@ -11,9 +11,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PERSONAS_DIR = Path(
-    os.environ.get("LOCAL_FIRST_PERSONAS_DIR", "~/.config/local-first/personas")
-).expanduser()
+DEFAULT_PERSONAS_DIR = Path(os.environ.get("LOCAL_FIRST_PERSONAS_DIR", "~/.config/local-first/personas")).expanduser()
 
 
 class BasePersona(BaseModel):
@@ -30,7 +28,6 @@ class ObsidianPersona(BasePersona):
     """Legacy model for Obsidian personas — now just an alias for BasePersona."""
 
 
-
 class PersonaBias(BaseModel):
     overweights: list[str] = []
     underweights: list[str] = []
@@ -40,9 +37,7 @@ class PersonaCard(BaseModel):
     name: str
     archetype: str
     domain: str
-    princilege: str = (
-        ""  # Some cards use principle, some use privileage, handle mapping if needed
-    )
+    princilege: str = ""  # Some cards use principle, some use privileage, handle mapping if needed
     principle: str = ""
     lens: str
     bias: PersonaBias
@@ -71,9 +66,7 @@ def get_brand_voice(path: Path | None = None) -> str:
     """
     from .config import get_setting
 
-    voice_path = path or get_setting(
-        "local-first-common", "brand_voice_path", env_var="BRAND_VOICE_PATH"
-    )
+    voice_path = path or get_setting("local-first-common", "brand_voice_path", env_var="BRAND_VOICE_PATH")
     if not voice_path or not Path(voice_path).exists():
         return ""
 
@@ -133,9 +126,7 @@ def load_persona(name: str, personas_dir: Path | None = None) -> BasePersona:
 
     available = []
     if directory.exists():
-        available = sorted(
-            p.stem for p in directory.glob("*") if p.suffix in (".yaml", ".md")
-        )
+        available = sorted(p.stem for p in directory.glob("*") if p.suffix in (".yaml", ".md"))
     hint = f"Available: {', '.join(available)}" if available else "No personas found."
     raise FileNotFoundError(f"Persona '{name}' not found at {directory}. {hint}")
 
@@ -324,9 +315,7 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         # Fallback: use the "Lens" or "Identity" if seed is missing
         lens_match = re.search(r"## Lens\s*\n+(.*?)(?=\n##|$)", content, re.DOTALL)
         if lens_match:
-            system_prompt = (
-                f"You are {name}, {archetype}. {lens_match.group(1).strip()}"
-            )
+            system_prompt = f"You are {name}, {archetype}. {lens_match.group(1).strip()}"
         else:
             system_prompt = f"You are {name}, {archetype}."
 
@@ -342,15 +331,11 @@ def load_obsidian_persona(path: Path) -> BasePersona:
     )
 
 
-def list_vault_personas(
-    category: str, vault_path: Path | None = None
-) -> list[BasePersona]:
+def list_vault_personas(category: str, vault_path: Path | None = None) -> list[BasePersona]:
     """List all personas in a specific obsidian category (under personas/{category})."""
     return list_personas(category=category, vault_path=vault_path)
 
 
-def list_obsidian_personas(
-    category: str = "brand", vault_path: Path | None = None
-) -> list[BasePersona]:
+def list_obsidian_personas(category: str = "brand", vault_path: Path | None = None) -> list[BasePersona]:
     """List all personas in a specific obsidian category. Legacy alias for list_vault_personas."""
     return list_vault_personas(category, vault_path)

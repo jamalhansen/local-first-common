@@ -17,10 +17,7 @@ def test_precedence(tmp_path, monkeypatch):
     assert get_setting(tool_name, "provider", default="ollama") == "anthropic"
 
     monkeypatch.setenv("TEST_PROVIDER", "groq")
-    assert (
-        get_setting(tool_name, "provider", env_var="TEST_PROVIDER", default="ollama")
-        == "groq"
-    )
+    assert get_setting(tool_name, "provider", env_var="TEST_PROVIDER", default="ollama") == "groq"
 
     assert (
         get_setting(

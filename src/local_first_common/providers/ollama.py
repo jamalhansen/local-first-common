@@ -126,9 +126,7 @@ class OllamaProvider(BaseProvider):
             prompt += f"\n\n<instructions>\nReturn ONLY a valid JSON object. Use this exact structure:\n{template}\n</instructions>"
         return prompt
 
-    def _build_payload(
-        self, prompt: str, is_json: bool, images: list[str] | None = None
-    ) -> dict[str, Any]:
+    def _build_payload(self, prompt: str, is_json: bool, images: list[str] | None = None) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
@@ -159,9 +157,7 @@ class OllamaProvider(BaseProvider):
                 if response.status_code == 404:
                     installed = self._get_installed_model_names()
                     hint = (
-                        f"Installed models: {installed}"
-                        if installed
-                        else "Run 'ollama list' to see installed models."
+                        f"Installed models: {installed}" if installed else "Run 'ollama list' to see installed models."
                     )
                     raise ModelNotFoundError(
                         f"Ollama model '{self.model}' not found. Pull it with 'ollama pull {self.model}'. "
@@ -179,15 +175,9 @@ class OllamaProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise ConnectionError(
-                f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
-            ) from exc
+            raise ConnectionError(f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve") from exc
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result
 
@@ -206,15 +196,11 @@ class OllamaProvider(BaseProvider):
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{self.models_url}/api/generate", json=payload
-                )
+                response = await client.post(f"{self.models_url}/api/generate", json=payload)
                 if response.status_code == 404:
                     installed = self._get_installed_model_names()
                     hint = (
-                        f"Installed models: {installed}"
-                        if installed
-                        else "Run 'ollama list' to see installed models."
+                        f"Installed models: {installed}" if installed else "Run 'ollama list' to see installed models."
                     )
                     raise ModelNotFoundError(
                         f"Ollama model '{self.model}' not found. Pull it with 'ollama pull {self.model}'. "
@@ -233,14 +219,8 @@ class OllamaProvider(BaseProvider):
                     "source_location": self.model,
                 },
             )
-            raise ConnectionError(
-                f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve"
-            ) from exc
+            raise ConnectionError(f"Ollama request failed: {exc}. Is Ollama running? Try: ollama serve") from exc
 
-        result = (
-            self._parse_json_response(content, response_model)
-            if response_model
-            else content
-        )
+        result = self._parse_json_response(content, response_model) if response_model else content
         self._debug_print_response(result)
         return result

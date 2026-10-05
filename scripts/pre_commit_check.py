@@ -37,8 +37,10 @@ DIRECT_LLM_IMPORT_RE = re.compile(
 
 # ── Local-first-specific checks ───────────────────────────────────────────────
 
+
 def _get_staged_or_all(repo_path: Path, all_files: bool) -> list[str]:
     import subprocess
+
     cmd = ["git", "ls-files"] if all_files else ["git", "diff", "--cached", "--name-only"]
     result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True, check=False)
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
@@ -121,18 +123,20 @@ def check_secrets(repo_path: Path, all_files: bool = False) -> list[str]:
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
+
 def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) -> bool:
     """Run general + local-first-specific checks."""
     extra = [
         ("Duplicate register_tool", check_duplicate_register_tool),
-        ("Direct LLM imports",      lambda p: check_direct_llm_imports(p, all_files)),
-        ("Secrets (gitleaks)",      lambda p: check_secrets(p, all_files)),
+        ("Direct LLM imports", lambda p: check_direct_llm_imports(p, all_files)),
+        ("Secrets (gitleaks)", lambda p: check_secrets(p, all_files)),
     ]
     return _base_scan(repo_path, all_files=all_files, verbose=verbose, extra_checks=extra)
 
 
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Pre-commit scanner for local-first projects")
     parser.add_argument("path", nargs="?", default=".", help="Repo path (default: current directory)")
     parser.add_argument("--all-files", action="store_true")

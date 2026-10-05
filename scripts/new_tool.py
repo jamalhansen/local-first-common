@@ -15,6 +15,7 @@ Usage:
 Creates <dest>/<tool-name>/, runs `uv sync`, `git init` + first commit, and
 installs the standard pre-commit/pre-push hooks via install_hooks.py.
 """
+
 import argparse
 import re
 import subprocess
@@ -74,7 +75,7 @@ pythonpath = ["src"]
 
 
 def render_main(pkg: str) -> str:
-    return f"from {pkg}.cli import app\n\nif __name__ == \"__main__\":\n    app()\n"
+    return f'from {pkg}.cli import app\n\nif __name__ == "__main__":\n    app()\n'
 
 
 def render_init() -> str:
@@ -141,16 +142,16 @@ def render_conftest() -> str:
 
 
 def render_test_core(pkg: str) -> str:
-    return f'''from {pkg}.core import run
+    return f"""from {pkg}.core import run
 
 
 def test_run_returns_a_string():
     assert isinstance(run(), str)
-'''
+"""
 
 
 def render_test_cli(pkg: str) -> str:
-    return f'''from typer.testing import CliRunner
+    return f"""from typer.testing import CliRunner
 
 from {pkg}.cli import app
 
@@ -159,7 +160,7 @@ def test_default_invocation_exits_clean():
     result = CliRunner().invoke(app, [])
     assert result.exit_code == 0
     assert "not yet implemented" in result.output
-'''
+"""
 
 
 def render_readme(slug: str, description: str) -> str:
@@ -234,9 +235,7 @@ def main() -> None:
 
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
     subprocess.run(["uv", "sync"], cwd=repo, check=True)
-    subprocess.run(
-        [sys.executable, str(INSTALL_HOOKS), "--repo", str(repo)], check=True
-    )
+    subprocess.run([sys.executable, str(INSTALL_HOOKS), "--repo", str(repo)], check=True)
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(
         ["git", "commit", "-q", "-m", f"Scaffold {slug} via new_tool.py"],

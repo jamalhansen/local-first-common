@@ -86,9 +86,7 @@ class TestOperationalLogging:
 
         conn = duckdb.connect(str(db_path))
         try:
-            old_ts = (datetime.now(UTC) - timedelta(days=120)).replace(
-                tzinfo=None
-            )
+            old_ts = (datetime.now(UTC) - timedelta(days=120)).replace(tzinfo=None)
             conn.execute(
                 """
                 INSERT INTO operational_log

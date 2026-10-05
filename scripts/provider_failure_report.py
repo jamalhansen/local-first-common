@@ -26,19 +26,13 @@ def _normalize_db_path(path: Path, default_filename: str) -> Path:
 
 def resolve_db_path(cli_value: str | None) -> Path:
     if cli_value:
-        return _normalize_db_path(
-            Path(cli_value).expanduser(), default_filename="error_log.duckdb"
-        )
+        return _normalize_db_path(Path(cli_value).expanduser(), default_filename="error_log.duckdb")
     if env := os.environ.get("LOCAL_FIRST_ERROR_LOG_DB"):
-        return _normalize_db_path(
-            Path(env).expanduser(), default_filename="error_log.duckdb"
-        )
+        return _normalize_db_path(Path(env).expanduser(), default_filename="error_log.duckdb")
     return DEFAULT_DB_PATH
 
 
-def top_run_contexts(
-    con: duckdb.DuckDBPyConnection, hours: int, limit: int
-) -> list[tuple]:
+def top_run_contexts(con: duckdb.DuckDBPyConnection, hours: int, limit: int) -> list[tuple]:
     query = """
     SELECT
         COALESCE(run_context, '(none)') AS run_context,
@@ -73,9 +67,7 @@ def top_models(con: duckdb.DuckDBPyConnection, hours: int, limit: int) -> list[t
     return con.execute(query, [hours, limit]).fetchall()
 
 
-def recent_examples(
-    con: duckdb.DuckDBPyConnection, hours: int, limit: int
-) -> list[tuple]:
+def recent_examples(con: duckdb.DuckDBPyConnection, hours: int, limit: int) -> list[tuple]:
     query = """
     SELECT
         created_at,
@@ -95,9 +87,7 @@ def recent_examples(
     return con.execute(query, [hours, limit]).fetchall()
 
 
-def print_table(
-    console: Console, title: str, columns: list[str], rows: list[tuple]
-) -> None:
+def print_table(console: Console, title: str, columns: list[str], rows: list[tuple]) -> None:
     table = Table(title=title)
     for index, column in enumerate(columns):
         justify = "right" if index > 0 else "left"

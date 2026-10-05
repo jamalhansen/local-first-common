@@ -19,12 +19,14 @@ class TestIsEnglish:
 
     def test_fails_open_on_langdetect_exception(self):
         from langdetect.lang_detect_exception import LangDetectException
+
         # detect is imported lazily inside is_english, so we patch at the source module
         with patch("langdetect.detect", side_effect=LangDetectException(0, "no features")):
             assert is_english("???") is True
 
     def test_fails_open_when_langdetect_missing(self):
         import builtins
+
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):

@@ -1,4 +1,5 @@
 """Tests for api_call_log wiring in local_first_common.social.{mastodon,bluesky}."""
+
 from unittest.mock import MagicMock, patch
 
 import duckdb

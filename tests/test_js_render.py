@@ -1,4 +1,5 @@
 """Tests for the optional real-browser rendering fallback."""
+
 import sys
 
 import pytest

@@ -45,10 +45,7 @@ def get_tier_model(tier: str, provider: str) -> str:
     normalized_tier = tier.strip().lower()
     normalized_provider = provider.strip().lower()
 
-    if (
-        normalized_tier in ("fast", "slm", "classification", "tagging")
-        and normalized_provider in FAST_TIER_MODELS
-    ):
+    if normalized_tier in ("fast", "slm", "classification", "tagging") and normalized_provider in FAST_TIER_MODELS:
         return FAST_TIER_MODELS[normalized_provider]
     elif (
         normalized_tier in ("reasoning", "cloud", "frontier", "critique")
@@ -90,16 +87,8 @@ def resolve_fallback_target(
     2. LOCAL_FIRST_FALLBACK_PROVIDER / FALLBACK_PROVIDER environment variables
     3. Auto-detected cloud provider with configured API key
     """
-    prov = (
-        requested_provider
-        or os.environ.get("LOCAL_FIRST_FALLBACK_PROVIDER")
-        or os.environ.get("FALLBACK_PROVIDER")
-    )
-    mod = (
-        requested_model
-        or os.environ.get("LOCAL_FIRST_FALLBACK_MODEL")
-        or os.environ.get("FALLBACK_MODEL")
-    )
+    prov = requested_provider or os.environ.get("LOCAL_FIRST_FALLBACK_PROVIDER") or os.environ.get("FALLBACK_PROVIDER")
+    mod = requested_model or os.environ.get("LOCAL_FIRST_FALLBACK_MODEL") or os.environ.get("FALLBACK_MODEL")
 
     if prov:
         prov = prov.strip().lower()

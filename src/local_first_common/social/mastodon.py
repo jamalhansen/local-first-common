@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_INSTANCES = ["fosstodon.org", "mastodon.social"]
 
+
 def fetch_posts(
     keywords: Sequence[str],
     instances: Sequence[str] = DEFAULT_INSTANCES,
@@ -50,9 +51,11 @@ def fetch_posts(
 
     return all_posts
 
+
 def extract_urls_from_post(post: dict) -> list[str]:
     """Extract URLs from a Mastodon post dict."""
     return [link.get("url") for link in post.get("card", {}).get("links", []) if link.get("url")]
+
 
 class MastodonReader(SocialReader):
     """Refined Mastodon reader class."""

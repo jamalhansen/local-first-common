@@ -52,9 +52,7 @@ class ClaudeCodeProvider(BaseProvider):
         super().__init__(model=model, debug=debug)
         self.binary = binary or os.environ.get("CLAUDE_CODE_BINARY") or shutil.which("claude")
         if not self.binary:
-            raise RuntimeError(
-                "claude CLI not found on PATH. Install Claude Code or set CLAUDE_CODE_BINARY."
-            )
+            raise RuntimeError("claude CLI not found on PATH. Install Claude Code or set CLAUDE_CODE_BINARY.")
         self.timeout = timeout
         # Claude Code injects its working directory's context (path, git status,
         # project CLAUDE.md) into the prompt, so a tool run from inside a repo
@@ -84,11 +82,16 @@ class ClaudeCodeProvider(BaseProvider):
         args = [
             self.binary,
             "-p",
-            "--output-format", "json",
-            "--model", self.model,
-            "--system-prompt", system,
-            "--tools", "",
-            "--setting-sources", "",
+            "--output-format",
+            "json",
+            "--model",
+            self.model,
+            "--system-prompt",
+            system,
+            "--tools",
+            "",
+            "--setting-sources",
+            "",
             "--strict-mcp-config",
             "--disable-slash-commands",
             "--no-session-persistence",
@@ -123,9 +126,7 @@ class ClaudeCodeProvider(BaseProvider):
                 (stderr or stdout)[:500],
                 extra={"run_context": "provider_cli_bad_output", "source_location": self.model},
             )
-            raise ClaudeCodeError(
-                f"claude CLI failed (exit {returncode}): {(stderr or stdout).strip()[:500]}"
-            ) from err
+            raise ClaudeCodeError(f"claude CLI failed (exit {returncode}): {(stderr or stdout).strip()[:500]}") from err
 
         # Same semantics as AnthropicProvider (uncached input only), so
         # processing_log totals stay comparable across the two.
@@ -201,9 +202,7 @@ class ClaudeCodeProvider(BaseProvider):
             cwd=self.workdir,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(user.encode()), timeout=self.timeout
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(user.encode()), timeout=self.timeout)
         except TimeoutError as err:
             raise ClaudeCodeError(f"claude CLI timed out after {self.timeout}s") from err
         finally:
@@ -211,6 +210,4 @@ class ClaudeCodeProvider(BaseProvider):
             if proc.returncode is None:
                 proc.kill()
                 await proc.wait()
-        return self._handle_output(
-            stdout.decode(), stderr.decode(), proc.returncode or 0, response_model
-        )
+        return self._handle_output(stdout.decode(), stderr.decode(), proc.returncode or 0, response_model)

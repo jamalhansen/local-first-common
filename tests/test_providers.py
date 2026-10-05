@@ -42,9 +42,7 @@ class TestProvidersDict:
 
     def test_each_value_is_base_provider_subclass(self):
         for name, cls in PROVIDERS.items():
-            assert issubclass(cls, BaseProvider), (
-                f"{name} is not a BaseProvider subclass"
-            )
+            assert issubclass(cls, BaseProvider), f"{name} is not a BaseProvider subclass"
 
     def test_resolve_provider_returns_mock_provider_for_no_llm(self):
         provider = resolve_provider(provider_name="ollama", no_llm=True)
@@ -170,9 +168,7 @@ class TestBaseProviderRateLimit:
                 return resp
 
             async def _acomplete(self, system, user, response_model=None, images=None):
-                return self._complete(
-                    system, user, response_model=response_model, images=images
-                )
+                return self._complete(system, user, response_model=response_model, images=images)
 
         return Concrete(), call_count
 
@@ -190,9 +186,7 @@ class TestBaseProviderRateLimit:
 
         p = Concrete()
         assert p._is_rate_limit_error(RuntimeError("429 Too Many Requests")) is True
-        assert (
-            p._is_rate_limit_error(RuntimeError("500 Internal Server Error")) is False
-        )
+        assert p._is_rate_limit_error(RuntimeError("500 Internal Server Error")) is False
 
     def test_retries_on_429_then_succeeds(self):
         rate_err = RuntimeError("429 Too Many Requests")
@@ -206,9 +200,7 @@ class TestBaseProviderRateLimit:
 
     def test_raises_after_exhausting_rate_limit_retries(self):
         rate_err = RuntimeError("429 Too Many Requests")
-        provider, call_count = self._make_provider(
-            [rate_err, rate_err, rate_err, rate_err]
-        )
+        provider, call_count = self._make_provider([rate_err, rate_err, rate_err, rate_err])
 
         with patch("time.sleep"), pytest.raises(RuntimeError, match="429"):
             provider.complete("sys", "usr", rate_limit_retries=2)
@@ -264,9 +256,7 @@ class TestBaseProviderRateLimit:
         assert p._rate_limit_wait_seconds(0) == 5
         assert p._rate_limit_wait_seconds(2) == 20
         assert p._should_retry_rate_limit(rate_error, attempt=0, rate_limit_retries=2)
-        assert not p._should_retry_rate_limit(
-            rate_error, attempt=2, rate_limit_retries=2
-        )
+        assert not p._should_retry_rate_limit(rate_error, attempt=2, rate_limit_retries=2)
         assert p._should_retry_schema(other_error, attempt=0, max_retries=1)
         assert not p._should_retry_schema(rate_error, attempt=0, max_retries=1)
 
@@ -309,9 +299,7 @@ class TestBaseProviderOutputModes:
                 return resp
 
             async def _acomplete(self, system, user, response_model=None, images=None):
-                return self._complete(
-                    system, user, response_model=response_model, images=images
-                )
+                return self._complete(system, user, response_model=response_model, images=images)
 
         return Concrete(**kwargs), call_count
 
@@ -395,9 +383,7 @@ class TestOllamaProvider:
             ctx.post.return_value = mock_resp
             mock_cls.return_value = ctx
 
-            result = OllamaProvider().complete(
-                "sys", "usr", response_model=SampleOutput
-            )
+            result = OllamaProvider().complete("sys", "usr", response_model=SampleOutput)
 
         assert isinstance(result, SampleOutput)
         assert result.title == "Test"
@@ -421,9 +407,7 @@ class TestOllamaProvider:
 
     def test_get_installed_model_names_smoke(self):
         p = OllamaProvider()
-        p._get_model_info = MagicMock(
-            return_value=[{"name": "phi4-mini"}, {"name": "llama3"}]
-        )
+        p._get_model_info = MagicMock(return_value=[{"name": "phi4-mini"}, {"name": "llama3"}])
         assert p._get_installed_model_names() == ["phi4-mini", "llama3"]
 
 
@@ -466,9 +450,7 @@ class TestAnthropicProvider:
             mock_client.messages.create.return_value = mock_message
             mock_cls.return_value = mock_client
 
-            result = AnthropicProvider().complete(
-                "sys", "usr", response_model=SampleOutput
-            )
+            result = AnthropicProvider().complete("sys", "usr", response_model=SampleOutput)
 
         assert isinstance(result, SampleOutput)
         assert result.title == "Test"
@@ -537,9 +519,7 @@ class TestGroqProvider:
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
-            "choices": [{"message": {"content": SAMPLE_JSON}}]
-        }
+        mock_resp.json.return_value = {"choices": [{"message": {"content": SAMPLE_JSON}}]}
 
         with patch("local_first_common.providers.groq.httpx.Client") as mock_cls:
             ctx = MagicMock()
@@ -592,9 +572,7 @@ class TestGeminiProvider:
         captured_parts = []
 
         fake_part = MagicMock()
-        fake_part.from_bytes = MagicMock(
-            side_effect=lambda data, mime_type: captured_parts.append(data) or MagicMock()
-        )
+        fake_part.from_bytes = MagicMock(side_effect=lambda data, mime_type: captured_parts.append(data) or MagicMock())
         fake_types_module = pytypes.ModuleType("google.genai.types")
         fake_types_module.Part = fake_part
         fake_types_module.GenerateContentConfig = MagicMock(return_value=MagicMock())
@@ -639,8 +617,11 @@ class TestOllamaVisionRecommendation:
         assert p.recommend_model("vision") == "llava:7b"
 
     def test_falls_back_to_a_model_ollama_reports_as_vision_capable(self, monkeypatch):
-        p = self._provider(monkeypatch, ["nomic-embed-text", "phi4", "gemma4:latest"],
-                           {"gemma4:latest": ["completion", "vision"], "nomic-embed-text": ["embedding"]})
+        p = self._provider(
+            monkeypatch,
+            ["nomic-embed-text", "phi4", "gemma4:latest"],
+            {"gemma4:latest": ["completion", "vision"], "nomic-embed-text": ["embedding"]},
+        )
         assert p.recommend_model("vision") == "gemma4:latest"
 
     def test_never_picks_an_arbitrary_non_vision_model(self, monkeypatch):

@@ -142,8 +142,8 @@ from local_first_common.article_fetcher import fetch_article_metadata
 item = fetch_article_metadata(
     url,
     tool=_TOOL,
-    source_url=post_url,       # the social post where the link was found
-    source_platform="bluesky", # 'bluesky', 'mastodon', etc.
+    source_url=post_url,  # the social post where the link was found
+    source_platform="bluesky",  # 'bluesky', 'mastodon', etc.
 )
 ```
 
@@ -220,6 +220,7 @@ from local_first_common.cli import (
     resolve_provider,
 )
 from local_first_common.config import get_setting
+
 
 @app.command()
 def run(

@@ -197,9 +197,7 @@ def resolve_provider(
 
     if provider_name not in providers:
         valid = ", ".join(providers.keys())
-        raise typer.BadParameter(
-            f"Unknown provider '{provider_name}'. Valid options: {valid}"
-        )
+        raise typer.BadParameter(f"Unknown provider '{provider_name}'. Valid options: {valid}")
 
     model = resolve_model_alias(provider_name, model)
 
@@ -226,7 +224,9 @@ def resolve_provider(
             if target:
                 fb_prov_name, fb_model_name = target
                 if fb_prov_name in providers and fb_prov_name not in ("ollama", "local"):
-                    fb_instance = GatewayProvider(LLM_GATEWAY_URL, fb_prov_name, fb_model_name, debug=debug, tool_name=tool_name)
+                    fb_instance = GatewayProvider(
+                        LLM_GATEWAY_URL, fb_prov_name, fb_model_name, debug=debug, tool_name=tool_name
+                    )
                     return FallbackProvider(primary, fb_instance, debug=debug, tool_name=tool_name)
 
         return primary
@@ -262,5 +262,3 @@ def resolve_provider(
                     logger.debug("Fallback provider setup failed, using primary only: %s", e)
 
     return primary
-
-

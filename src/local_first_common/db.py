@@ -10,25 +10,26 @@ def _resolve_quality_db_path() -> Path:
     # 1. Environment variable override
     if env := os.environ.get("LOCAL_FIRST_QUALITY_DB"):
         return Path(env).expanduser()
-    
+
     # 2. Preferred sync path
     sync_path = Path("~/sync/local-first/content_quality.db").expanduser()
     if sync_path.exists():
         return sync_path
-    
+
     # 3. Local fallback (XDG-ish)
     fallback_path = Path("~/.local/share/local-first/content_quality.db").expanduser()
     return fallback_path
 
+
 def resolve_sync_path(
-    tool_name: str, 
-    db_filename: str, 
+    tool_name: str,
+    db_filename: str,
     env_var: str | None = None,
     local_migration_path: str | Path | None = None,
-    custom_path: str | Path | None = None
+    custom_path: str | Path | None = None,
 ) -> Path:
     """Resolve a database path in the sync folder, with optional migration from a local path.
-    
+
     Order of precedence:
     1. Custom path (if provided)
     2. Environment variable (if env_var is provided and set)
@@ -42,20 +43,21 @@ def resolve_sync_path(
     # 2. Env var override
     if env_var and (env := os.environ.get(env_var)):
         return Path(env).expanduser()
-    
+
     # 3. Sync path
     sync_path = Path(f"~/sync/{tool_name}/{db_filename}").expanduser()
-    
+
     # Optional migration from local project folder
     if local_migration_path:
         local_path = Path(local_migration_path).expanduser()
         if local_path.exists() and not sync_path.exists():
             import shutil
+
             try:
                 sync_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(local_path, sync_path) # copy first for safety
-                local_path.unlink() # then delete
-                # We don't use print here to avoid noise in non-CLI contexts, 
+                shutil.copy2(local_path, sync_path)  # copy first for safety
+                local_path.unlink()  # then delete
+                # We don't use print here to avoid noise in non-CLI contexts,
                 # but we could log it if needed.
             except Exception:  # noqa: BLE001 - best-effort migration; any failure (permissions, disk space) should fall back, not crash
                 # If migration fails, fall back to local path for this run
@@ -63,9 +65,10 @@ def resolve_sync_path(
 
     if sync_path.parent.exists() or Path("~/sync").expanduser().exists():
         return sync_path
-        
+
     # 3. Local fallback
     return Path(f"~/.local/share/local-first/{tool_name}/{db_filename}").expanduser()
+
 
 # Standard paths for syncing across devices
 CONTENT_QUALITY_DB_PATH = _resolve_quality_db_path()
@@ -74,7 +77,7 @@ CONTENT_QUALITY_DB_PATH = _resolve_quality_db_path()
 @contextmanager
 def get_db_cursor(db_path: str | Path) -> Generator[sqlite3.Cursor | None, None, None]:
     """Context manager for a SQLite database cursor.
-    
+
     Handles connection, sets Row factory, and closes on exit.
     Yields None if the database file does not exist.
     """
@@ -82,7 +85,7 @@ def get_db_cursor(db_path: str | Path) -> Generator[sqlite3.Cursor | None, None,
     if not path.exists():
         yield None
         return
-    
+
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     try:
@@ -90,17 +93,19 @@ def get_db_cursor(db_path: str | Path) -> Generator[sqlite3.Cursor | None, None,
     finally:
         conn.close()
 
+
 def init_db(db_path: str | Path, schema_sql: str) -> None:
     """Initialize a SQLite database with the given schema if it doesn't exist."""
     path = Path(db_path).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     conn = sqlite3.connect(str(path))
     try:
         conn.executescript(schema_sql)
         conn.commit()
     finally:
         conn.close()
+
 
 def is_seen(db_path: str | Path, table: str, url_col: str, url: str) -> bool:
     """Check if a URL already exists in the given table."""
@@ -109,6 +114,7 @@ def is_seen(db_path: str | Path, table: str, url_col: str, url: str) -> bool:
             return False
         cur.execute(f"SELECT 1 FROM {table} WHERE {url_col} = ?", (url,))
         return cur.fetchone() is not None
+
 
 def mark_status(
     db_path: str | Path,
@@ -129,6 +135,7 @@ def mark_status(
     try:
         if timestamp_col:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC).isoformat()
             conn.execute(
                 f"UPDATE {table} SET {status_col} = ?, {timestamp_col} = ? WHERE {url_col} = ?",

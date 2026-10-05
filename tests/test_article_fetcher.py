@@ -1,4 +1,5 @@
 """Tests for local_first_common.article_fetcher."""
+
 from pathlib import Path
 from unittest.mock import patch
 
@@ -105,11 +106,7 @@ class TestFetchArticleMetadata:
 
     def test_discovery_metadata_is_passed_through(self):
         with patch("local_first_common.http.fetch_url", return_value=SAMPLE_HTML):
-            item = fetch_article_metadata(
-                "https://duckdb.org/article",
-                search_term="duckdb",
-                source_platform="bluesky"
-            )
+            item = fetch_article_metadata("https://duckdb.org/article", search_term="duckdb", source_platform="bluesky")
 
         assert item is not None
         assert item.search_term == "duckdb"

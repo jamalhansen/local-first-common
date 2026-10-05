@@ -19,9 +19,7 @@ class TestGetClipboard:
         mock_result.stdout = "clipboard content\n"
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             result = get_clipboard()
-        mock_run.assert_called_once_with(
-            ["pbpaste"], capture_output=True, text=True, timeout=5, check=False
-        )
+        mock_run.assert_called_once_with(["pbpaste"], capture_output=True, text=True, timeout=5, check=False)
         assert result == "clipboard content"
 
     def test_falls_back_to_pyperclip_on_file_not_found(self):

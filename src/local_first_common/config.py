@@ -16,9 +16,7 @@ def load_config(tool_name: str) -> dict[str, Any]:
     try:
         return toml.load(config_path)
     except Exception as e:  # noqa: BLE001 - a hand-edited TOML file can fail in many ways; degrade to defaults rather than crash every tool
-        print(
-            f"Warning: Failed to load config from {config_path}: {e}", file=sys.stderr
-        )
+        print(f"Warning: Failed to load config from {config_path}: {e}", file=sys.stderr)
         return {}
 
 

@@ -54,6 +54,7 @@ def try_xml_parse(raw: str, fields: list[str]) -> dict[str, str] | None:
         # {"score": "0.8", "summary": "Great post"}
     """
     import re
+
     result: dict[str, str] = {}
     for field in fields:
         match = re.search(rf"<{field}>(.*?)</{field}>", raw, re.DOTALL)
