@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install git pre-commit and pre-push security hooks into local-first repos.
 
-pre-commit: ruff, pytest, personal-path scan, gitignore check, sensitive filenames
+pre-commit: ruff check + format, uv.lock check, pytest, personal-path scan, gitignore check, sensitive filenames
 pre-push:   gitleaks (secret scan against committed history)
 
 Usage:
@@ -20,7 +20,7 @@ import stat
 from pathlib import Path
 
 # Current hook version
-HOOK_VERSION = "1.7"
+HOOK_VERSION = "1.8"
 
 # Pinned so `ruff`'s own default rule selection can't silently change based on
 # whichever version happens to be installed/on PATH on a given machine -- found
@@ -48,6 +48,27 @@ if [ $STATUS -ne 0 ]; then
     echo ""
     echo "Commit blocked: ruff found lint errors. Fix them or use --no-verify to bypass."
     exit 1
+fi
+
+echo "Running ruff format check..."
+uv run --with {RUFF_PIN} ruff format --check .
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+    echo ""
+    echo "Commit blocked: unformatted files. Run: uv run --with {RUFF_PIN} ruff format ."
+    echo "Then check ruff again: formatting can move a '# noqa' off the line it suppresses."
+    exit 1
+fi
+
+if [ -f "uv.lock" ]; then
+    echo "Checking uv.lock matches pyproject.toml..."
+    uv lock --check
+    STATUS=$?
+    if [ $STATUS -ne 0 ]; then
+        echo ""
+        echo "Commit blocked: uv.lock is out of date. Run 'uv lock' and stage it."
+        exit 1
+    fi
 fi
 
 if [ -d "tests" ]; then

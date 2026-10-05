@@ -1,10 +1,14 @@
 # Shared CI for every local-first fleet repo (added 2026-10-04).
 #
 # Mirrors the local pre-commit hook (install_hooks.py) so CI and the hook can't
-# disagree: pinned ruff with SIM115 and B904 (raise-from inside except), pytest with the 50% coverage floor. Adds the
-# two checks no commit-time hook can do well: pip-audit over the locked
-# dependencies (new advisories appear without any commit, which is why callers
-# also run weekly) and gitleaks over the full git history.
+# disagree: pinned ruff with SIM115 and B904 (raise-from inside except), ruff
+# format --check (line length 120, set in each repo's pyproject.toml), uv.lock
+# matching pyproject.toml, pytest with the 50% coverage floor. Adds the checks no
+# commit-time hook can do well: pip-audit over the locked dependencies (new
+# advisories appear without any commit, which is why callers also run weekly),
+# gitleaks over the full git history, and pyright. pyright only reports
+# (annotations, run stays green) unless the caller passes typecheck: strict --
+# repos opt in once they reach zero errors (added 2026-10-05).
 #
 # Every check runs even if an earlier one failed, so one run is a complete report.
 #
@@ -14,6 +18,7 @@
 #       uses: jamalhansen/local-first-common/.github/workflows/python-ci.yml@main
 #       with:
 #         siblings: "content-discovery-agent"   # only for repos with ../ path deps
+#         typecheck: strict                      # only once pyright reports zero errors
 name: python-ci
 
 on:
@@ -30,6 +35,10 @@ on:
       python-version:
         type: string
         default: "3.12"
+      typecheck:
+        description: "report (pyright errors are annotations only) or strict (they fail the run)"
+        type: string
+        default: "report"
 
 permissions:
   contents: read
@@ -40,11 +49,16 @@ env:
   # --help text saw ANSI codes in CI only (blog-post-draft-reviewer, 2026-10-04).
   _TYPER_FORCE_DISABLE_TERMINAL: "1"
   GITLEAKS_VERSION: "8.30.1"
+  PYRIGHT_PIN: "pyright==1.1.414"
 
 jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # A newer push to the same branch makes an in-flight run moot.
+    concurrency:
+      group: ${{ github.repository }}-${{ github.ref }}-${{ github.event_name }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: repo
@@ -67,12 +81,23 @@ jobs:
           python-version: ${{ inputs.python-version }}
           working-directory: repo
 
+      - name: uv.lock matches pyproject.toml
+        id: lock
+        run: uv lock --check
+
       - name: Install (from uv.lock, exactly)
+        if: success() || failure()
         run: uv sync --frozen
 
       - name: Lint
         id: lint
+        if: success() || failure()
         run: uv run --frozen --with "$RUFF_PIN" ruff check --extend-select SIM115,B904 .
+
+      - name: Format
+        id: format
+        if: success() || failure()
+        run: uv run --frozen --with "$RUFF_PIN" ruff format --check .
 
       - name: Tests
         id: tests
@@ -119,3 +144,25 @@ jobs:
           curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git . --no-banner --redact
+
+      - name: Types (pyright)
+        id: types
+        if: success() || failure()
+        # Runs inside the synced venv so imports resolve. Every error becomes an
+        # annotation (first 50); only typecheck: strict lets them fail the run.
+        run: |
+          status=0
+          uv run --frozen --with "$PYRIGHT_PIN" pyright --outputjson . > "$RUNNER_TEMP/pyright.json" || status=$?
+          python3 - "$RUNNER_TEMP/pyright.json" "${{ inputs.typecheck }}" <<'PY'
+          import json, os, sys
+          report, mode = json.load(open(sys.argv[1])), sys.argv[2]
+          errors = [d for d in report["generalDiagnostics"] if d["severity"] == "error"]
+          level = "error" if mode == "strict" else "warning"
+          for d in errors[:50]:
+              path = os.path.relpath(d["file"])
+              line = d["range"]["start"]["line"] + 1
+              msg = d["message"].replace("%", "%25").replace("\n", "%0A")
+              print(f"::{level} file={path},line={line},title=pyright {d.get('rule', '')}::{msg}")
+          print(f"pyright: {len(errors)} errors ({mode} mode)")
+          PY
+          if [ "${{ inputs.typecheck }}" = "strict" ]; then exit $status; fi
