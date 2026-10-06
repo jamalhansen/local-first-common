@@ -187,6 +187,17 @@ class BaseProvider(ABC):
         images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
+    ) -> str: ...  # every provider returns the raw text when there is no response_model
+
+    @overload
+    def complete(
+        self,
+        system: str,
+        user: str,
+        response_model: Any,
+        images: list[str] | None = None,
+        max_retries: int = 1,
+        rate_limit_retries: int = 3,
     ) -> str | dict[str, Any]: ...
 
     def complete(
@@ -245,6 +256,17 @@ class BaseProvider(ABC):
         system: str,
         user: str,
         response_model: None = None,
+        images: list[str] | None = None,
+        max_retries: int = 1,
+        rate_limit_retries: int = 3,
+    ) -> str: ...  # every provider returns the raw text when there is no response_model
+
+    @overload
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: Any,
         images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
