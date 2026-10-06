@@ -59,7 +59,7 @@ class FallbackProvider(BaseProvider):
         self.primary.model = value
 
     @property
-    def provider_name(self) -> str:
+    def provider_name(self) -> str:  # pyright: ignore[reportIncompatibleVariableOverride]  # forwards to the active provider
         return self._active.provider_name
 
     @property
@@ -75,7 +75,7 @@ class FallbackProvider(BaseProvider):
         return getattr(self._active, "source_location", None)
 
     @source_location.setter
-    def source_location(self, value: str | None) -> None:
+    def source_location(self, value: str | None) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]  # forwards to the active provider
         # Set on both -- whichever one actually runs needs it in its own
         # payload; there's no way to know in advance which that'll be.
         self.primary.source_location = value
@@ -86,7 +86,7 @@ class FallbackProvider(BaseProvider):
         return getattr(self._active, "item_count", None)
 
     @item_count.setter
-    def item_count(self, value: int | None) -> None:
+    def item_count(self, value: int | None) -> None:  # pyright: ignore[reportIncompatibleVariableOverride]  # forwards to the active provider
         self.primary.item_count = value
         self.fallback.item_count = value
 

@@ -860,7 +860,7 @@ class _FetchContext:
 
 
 def tracked_call(
-    tool: "Tool",
+    tool: "Tool | None",
     service: str,
     operation: str,
     db_path: str | Path | None = None,

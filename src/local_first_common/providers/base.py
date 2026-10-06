@@ -5,14 +5,14 @@ import re
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Union, get_args, get_origin
+from typing import Any, ClassVar, Union, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
 
 class BaseProvider(ABC):
     default_model: str
-    known_models: list
+    known_models: ClassVar[list[str]]
     models_url: str
     # Canonical lowercase name matching local_first_common.providers.PROVIDERS'
     # keys -- for tracking.timed_run(..., provider=llm.provider_name), so
@@ -20,6 +20,11 @@ class BaseProvider(ABC):
     # model. GatewayProvider/FallbackProvider override this as a property
     # since their real provider isn't known until construction/call time.
     provider_name: str
+    # Per-call context a tool may set before complete(). Only GatewayProvider
+    # persists them (in the gateway's one processing_log write, since
+    # 2026-09-20); FallbackProvider forwards them; direct providers ignore them.
+    source_location: str | None = None
+    item_count: int | None = None
 
     def __init__(
         self,

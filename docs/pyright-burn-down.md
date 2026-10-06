@@ -33,8 +33,10 @@ Re-measure: `uv run --frozen --with pyright==1.1.414 pyright .` in the repo.
    - `tracked_call(tool: Tool)` is passed `Tool | None` from `register_tool`
      (7 in readwise.py). Decide which side is wrong, since register_tool returns
      None on failure and that is a real path.
-   Re-measure the fleet afterwards: siblings use local-first-common by `../` path,
-   so the effect is immediate.
+   Done 2026-10-06 (local-first-common 127 -> 92). The other repos pin
+   local-first-common to a git commit in uv.lock (39 of them, on two different
+   commits), so they only see the fix after `uv lock --upgrade-package
+   local-first-common` -- do that in each repo's own pyright commit (step 3/4).
 2. **Flip the six zero-error repos to strict** in one sweep.
 3. **The 1-10 error repos, one commit each:** fix, then flip strict in the same
    commit, so the fix can't regress.
