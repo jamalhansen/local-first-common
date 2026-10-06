@@ -5,9 +5,16 @@ import re
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, ClassVar, Union, get_args, get_origin
+from typing import Any, ClassVar, TypeVar, Union, get_args, get_origin, overload
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+# complete(response_model=Model) returns a validated Model instance; without one,
+# the raw str (or dict, for JSON-mode providers).
+M = TypeVar("M", bound=BaseModel)
 
 
 class BaseProvider(ABC):
@@ -160,6 +167,28 @@ class BaseProvider(ABC):
                     continue
                 raise
 
+    @overload
+    def complete(
+        self,
+        system: str,
+        user: str,
+        response_model: type[M],
+        images: list[str] | None = None,
+        max_retries: int = 1,
+        rate_limit_retries: int = 3,
+    ) -> M: ...
+
+    @overload
+    def complete(
+        self,
+        system: str,
+        user: str,
+        response_model: None = None,
+        images: list[str] | None = None,
+        max_retries: int = 1,
+        rate_limit_retries: int = 3,
+    ) -> str | dict[str, Any]: ...
+
     def complete(
         self,
         system: str,
@@ -168,7 +197,7 @@ class BaseProvider(ABC):
         images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
-    ) -> str | dict[str, Any]:
+    ) -> Any:
         """Call the LLM with retry on JSON/validation failure and 429 rate limits.
 
         max_retries controls retries on bad responses (error injected into prompt).
@@ -199,6 +228,28 @@ class BaseProvider(ABC):
                     continue
                 raise
 
+    @overload
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: type[M],
+        images: list[str] | None = None,
+        max_retries: int = 1,
+        rate_limit_retries: int = 3,
+    ) -> M: ...
+
+    @overload
+    async def acomplete(
+        self,
+        system: str,
+        user: str,
+        response_model: None = None,
+        images: list[str] | None = None,
+        max_retries: int = 1,
+        rate_limit_retries: int = 3,
+    ) -> str | dict[str, Any]: ...
+
     async def acomplete(
         self,
         system: str,
@@ -207,7 +258,7 @@ class BaseProvider(ABC):
         images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
-    ) -> str | dict[str, Any]:
+    ) -> Any:
         """Async version of complete(). Same retry behaviour."""
         current_user = user
 
