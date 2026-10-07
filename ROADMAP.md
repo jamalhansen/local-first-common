@@ -166,3 +166,28 @@ flat quota instead of metered `ANTHROPIC_API_KEY` billing.
   tools don't silently start drawing on the subscription; opt in with
   `FALLBACK_PROVIDER=claude-code`. Not yet: image input (needs
   `--input-format stream-json`).
+
+### Phase 7: Fleet CI hardening and cutting local-first-common churn (done 2026-10-06)
+
+Phase 5's decision (separate repos) stands; this phase takes the cost out of it.
+Re-pinning 39 repos by hand three times in one day, with the fleet already
+split across two pinned commits, is what prompted it.
+
+- [x] **Step 7.1: Shared CI and hook checks.** `ruff format --check` (line
+  length 120 in each pyproject), `uv lock --check`, and pyright, strict by
+  default once every repo reached zero errors (527 at baseline;
+  `docs/pyright-burn-down.md` lists the real bugs it surfaced). Hook v1.8.
+- [x] **Step 7.2: Move single-user modules out.** `article_fetcher`,
+  `js_render`, `readwise` and `scoring` moved to content-discovery-agent
+  (`discovery.support.*`), their only user, with the playwright extra. The
+  package root no longer imports readwise/scoring.
+- [x] **Step 7.3: Downstream CI.** `.github/workflows/downstream.yml` runs all 39
+  consumers' tests and strict pyright against each local-first-common push,
+  before anyone re-pins.
+- [x] **Step 7.4: `fleet relock`** (fleet-cli). Re-pins repos to main in
+  path-dependency order, counts a commit only if HEAD moved (a rejecting hook
+  restores the lock), never pushes a repo whose sibling has unpushed work, and
+  confirms the push landed. First real run: 39 pushed, 41/41 CI green.
+- [ ] **Open:** three top-level repos also depend on local-first-common and sit
+  on older pins, outside downstream.yml: vault-log, vault-semantic-search
+  (dormant, decision pending), vault-tools (has uncommitted work).
