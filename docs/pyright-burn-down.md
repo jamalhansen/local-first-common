@@ -1,5 +1,16 @@
 # pyright burn-down
 
+**Done 2026-10-06.** All 41 Python fleet repos at zero errors, every caller on
+`typecheck: strict`, all CI green; the shared workflow's default is now strict.
+527 errors at baseline. Real bugs it surfaced, fixed in the same commits:
+social-post-reader's daily-note append never ran (wrong call signature);
+newsletter-prep-assistant stored a quoted issue_number as a str; vault-query
+crashed with no query; obsidian-vault-auto-tagger, pebble, obsidian-hugo-bridge
+and tension-triage-dashboard split a scalar YAML tags/notes value into characters
+or crashed on it; local-first-common's rate-limit loops could return None and
+track() was annotated with the builtin any(); japanese-tutor's root main.py
+imported a module that never existed. The record below is the plan as run.
+
 Shared CI runs pyright 1.1.414 on every fleet repo since 2026-10-05, report-only:
 errors are warning annotations and the run stays green. A repo passes
 `typecheck: strict` in its `.github/workflows/ci.yml` once it reaches zero, and

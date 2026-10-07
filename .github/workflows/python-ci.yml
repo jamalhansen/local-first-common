@@ -6,9 +6,9 @@
 # matching pyproject.toml, pytest with the 50% coverage floor. Adds the checks no
 # commit-time hook can do well: pip-audit over the locked dependencies (new
 # advisories appear without any commit, which is why callers also run weekly),
-# gitleaks over the full git history, and pyright. pyright only reports
-# (annotations, run stays green) unless the caller passes typecheck: strict --
-# repos opt in once they reach zero errors (added 2026-10-05).
+# gitleaks over the full git history, and pyright, which fails the run on any
+# error (strict is the default since 2026-10-06, when the whole fleet reached zero;
+# typecheck: report downgrades it to annotations for a repo mid-cleanup).
 #
 # Every check runs even if an earlier one failed, so one run is a complete report.
 #
@@ -18,7 +18,7 @@
 #       uses: jamalhansen/local-first-common/.github/workflows/python-ci.yml@main
 #       with:
 #         siblings: "content-discovery-agent"   # only for repos with ../ path deps
-#         typecheck: strict                      # only once pyright reports zero errors
+#         typecheck: report                      # only while cleaning up a new repo
 name: python-ci
 
 on:
@@ -36,9 +36,9 @@ on:
         type: string
         default: "3.12"
       typecheck:
-        description: "report (pyright errors are annotations only) or strict (they fail the run)"
+        description: "strict (pyright errors fail the run) or report (annotations only, for a repo mid-cleanup)"
         type: string
-        default: "report"
+        default: "strict"
 
 permissions:
   contents: read
