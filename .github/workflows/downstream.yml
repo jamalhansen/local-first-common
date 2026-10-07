@@ -1,0 +1,116 @@
+# Downstream check (added 2026-10-06, plan B step 2).
+#
+# Every fleet repo pins local-first-common to a commit in its uv.lock, so a change
+# here reaches a repo only when that repo is re-pinned -- which is when a breaking
+# change used to surface, one repo at a time. This runs each consumer's tests and
+# pyright (strict) against THIS commit of local-first-common, before anyone re-pins.
+#
+# Each consumer is checked out from its default branch with the siblings its own
+# ci.yml declares (../ path dependencies), synced from its own uv.lock, then run
+# with this checkout layered over the locked local-first-common
+# (`uv run --with-editable ../local-first-common`).
+#
+# Adding a fleet repo: add it to the matrix below.
+name: downstream
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "pyproject.toml", "uv.lock", ".github/workflows/downstream.yml"]
+  pull_request:
+    paths: ["src/**", "pyproject.toml", "uv.lock", ".github/workflows/downstream.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: downstream-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYRIGHT_PIN: "pyright==1.1.414"   # keep in step with python-ci.yml
+  _TYPER_FORCE_DISABLE_TERMINAL: "1"
+
+jobs:
+  consumer:
+    name: ${{ matrix.repo }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - adversary
+          - artist-agent
+          - blog-post-cross-link-suggester
+          - blog-post-draft-reviewer
+          - brand-voice-validator
+          - calibration
+          - content-discovery-agent
+          - cross-vault-seed-sync
+          - draft-tools
+          - finding-triage
+          - fleet-cli
+          - fleet-dashboard-service
+          - frontmatter-validator
+          - japanese-tutor
+          - llm-gateway-service
+          - marketing-persona-counsel
+          - model-compare
+          - model-comparison-harness
+          - newsletter-prep-assistant
+          - obsidian-hugo-bridge
+          - obsidian-vault-auto-tagger
+          - pebble-baby-album
+          - pedantic-troll
+          - persona-counsel
+          - photo-metadata-scrubber
+          - photo-renamer
+          - photo-scaler
+          - pipeline-compose
+          - process-doctor
+          - rot-finder
+          - social-post-reader
+          - stale-obsidian-note-detector
+          - tension-triage-dashboard
+          - transcription-summarizer
+          - unsplash-uploader
+          - vault-query
+          - weekly-review-generator
+          - weekly-thread-triage
+          - yt-transcription-summarizer
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: local-first-common
+
+      - name: Clone ${{ matrix.repo }} and its siblings
+        run: |
+          git clone --depth 1 "https://github.com/jamalhansen/${{ matrix.repo }}.git" repo
+          siblings=$(sed -nE 's/^[[:space:]]*siblings:[[:space:]]*"([^"]*)".*/\1/p' repo/.github/workflows/ci.yml)
+          for s in $siblings; do
+            git clone --depth 1 "https://github.com/jamalhansen/${s}.git" "${s}"
+          done
+          echo "siblings: ${siblings:-none}"
+
+      - uses: astral-sh/setup-uv@v10.2.0   # keep in step with python-ci.yml
+        with:
+          python-version: "3.12"
+          working-directory: repo
+
+      - name: Install (consumer's own uv.lock)
+        working-directory: repo
+        run: uv sync --frozen
+
+      - name: Tests against this local-first-common
+        id: tests
+        working-directory: repo
+        run: |
+          if [ ! -d tests ]; then echo "no tests/ directory"; exit 0; fi
+          uv run --frozen --with-editable ../local-first-common pytest -q -rfE --tb=short
+
+      - name: pyright against this local-first-common
+        if: success() || failure()
+        working-directory: repo
+        run: uv run --frozen --with-editable ../local-first-common --with "$PYRIGHT_PIN" pyright
