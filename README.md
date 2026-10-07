@@ -188,53 +188,6 @@ xml = try_xml_parse(raw, ["score", "summary", "language", "tags"])
 
 ---
 
-### `local_first_common.scoring`
-
-Base class for LLM-based content scorers. Handles JSON parsing with XML fallback, provider error catching, and parse failure counting.
-
-```python
-from local_first_common.scoring import BaseScorer, ScoredItem
-
-
-class MyScorer(BaseScorer):
-    system_prompt = "Return JSON with score, tags, summary, language."
-
-
-scorer = MyScorer()
-result = scorer.score(provider, user_message)
-# result: ScoredItem(score=0.85, tags=["ai"], summary="...", language="en") | None
-
-# Counters for tracking (wire to timed_run):
-scorer.xml_fallback_count  # times XML fallback was used
-scorer.parse_error_count  # times both JSON and XML failed
-```
-
----
-
-### `local_first_common.readwise`
-
-Readwise Reader API integration.
-
-```python
-from local_first_common.readwise import save_to_readwise
-
-ok = save_to_readwise(
-    token,
-    "https://example.com/article",
-    title="Article Title",
-    summary="One sentence summary.",
-    tags=["ai", "python"],
-    published_date="2026-03-01",
-    tool=my_tool,  # optional — see local_first_common.tracking below; logs the call
-)
-```
-
-`save_to_readwise`, `list_reader_documents`, `list_reader_refs`, and `archive_reader_document` all accept an optional `tool=` (and `db_path=`) to log the call via `tracked_call` — see `local_first_common.tracking` below. Omitting `tool` is a no-op for logging, unchanged from before.
-
-`local_first_common.social.mastodon.fetch_posts` and `local_first_common.social.bluesky.{get_auth_token,fetch_posts}` take the same optional `tool=`/`db_path=` pair.
-
----
-
 ### `local_first_common.models`
 
 Pydantic model for Obsidian frontmatter. Use for any tool that reads or writes structured vault notes.

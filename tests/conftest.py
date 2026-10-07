@@ -21,17 +21,16 @@ def _isolate_gateway_env(monkeypatch):
     never changes which code path a test exercises.
 
     Both are set globally in .zshenv (2026-09-19) so real tool invocations route
-    through the gateway/retriever by default. ``cli.LLM_GATEWAY_URL`` and
-    ``article_fetcher.HTTP_RETRIEVER_URL`` are read once at import time, so by
-    the time any test runs, delenv-ing the env var alone is too late — the
-    module attribute must be patched directly. A test that wants gateway/
+    through the gateway/retriever by default. ``cli.LLM_GATEWAY_URL`` is read
+    once at import time, so by the time any test runs, delenv-ing the env var
+    alone is too late — the module attribute must be patched directly
+    (article_fetcher, the other one, moved to content-discovery-agent 2026-10-06). A test that wants gateway/
     retriever behavior should patch that attribute itself (see
     test_gateway_provider.py's ``patch("local_first_common.cli.LLM_GATEWAY_URL", ...)``).
     """
-    from local_first_common import article_fetcher, cli
+    from local_first_common import cli
 
     monkeypatch.setattr(cli, "LLM_GATEWAY_URL", None, raising=False)
-    monkeypatch.setattr(article_fetcher, "HTTP_RETRIEVER_URL", None, raising=False)
     monkeypatch.delenv("LLM_GATEWAY_URL", raising=False)
     monkeypatch.delenv("HTTP_RETRIEVER_URL", raising=False)
 

@@ -131,29 +131,19 @@ if problems(results):
 
 ### `tracked_fetch(tool, url, ...)` — required for tools that fetch external URLs
 
-If your tool fetches article URLs found in social posts or elsewhere, use
-`tracked_fetch` (via `fetch_article_metadata`) instead of calling
+If your tool fetches external URLs, use `tracked_fetch` instead of calling
 `http.fetch_url` directly. This logs every attempt to `fetch_log` with HTTP
-status, duration, and source lineage.
+status, duration, and source lineage (pass `source_url`/`source_platform` when
+the link came from a social post).
 
-```python
-from local_first_common.article_fetcher import fetch_article_metadata
-
-item = fetch_article_metadata(
-    url,
-    tool=_TOOL,
-    source_url=post_url,  # the social post where the link was found
-    source_platform="bluesky",  # 'bluesky', 'mastodon', etc.
-)
-```
-
-If your tool fetches URLs that aren't from social posts (e.g. user-supplied),
-use `tracked_fetch` directly:
+(The article-metadata wrapper around it, `fetch_article_metadata`, moved to
+content-discovery-agent's `discovery.support.article_fetcher` on 2026-10-06 --
+it was the only user. Copy or move it again if a second tool needs it.)
 
 ```python
 from local_first_common.tracking import tracked_fetch
 
-with tracked_fetch(_TOOL, url) as fetch:
+with tracked_fetch(_TOOL, url, source_url=post_url, source_platform="bluesky") as fetch:
     if fetch.html is None:
         raise RuntimeError(f"Failed to fetch: {fetch.error_message}")
     fetch.title = parse_title(fetch.html)
