@@ -20,6 +20,7 @@ def _hold_lock(path, seconds):
         c.close()
     """)
     proc = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    assert proc.stdout is not None
     assert proc.stdout.readline().strip() == "held"
     return proc
 

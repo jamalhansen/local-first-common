@@ -9,7 +9,7 @@ from local_first_common.clipboard import get_clipboard
 def _mock_pyperclip(text: str):
     """Inject a fake pyperclip module into sys.modules."""
     mod = types.ModuleType("pyperclip")
-    mod.paste = lambda: text
+    mod.paste = lambda: text  # pyright: ignore[reportAttributeAccessIssue]  # building a fake module
     return mod
 
 

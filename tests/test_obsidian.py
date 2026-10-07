@@ -53,7 +53,9 @@ class TestFrontmatter:
 
     def test_split_preserves_raw_yaml_for_rewrites(self):
         text = "---\nTitle: A  # comment\n---\n\nBody"
-        raw, body = split_frontmatter(text)
+        parts = split_frontmatter(text)
+        assert parts is not None
+        raw, body = parts
         assert f"---\n{raw}---\n{body}" == text
 
     def test_file_helpers(self, tmp_path):

@@ -131,7 +131,8 @@ def run_scan(repo_path: Path, all_files: bool = False, verbose: bool = False) ->
         ("Direct LLM imports", lambda p: check_direct_llm_imports(p, all_files)),
         ("Secrets (gitleaks)", lambda p: check_secrets(p, all_files)),
     ]
-    return _base_scan(repo_path, all_files=all_files, verbose=verbose, extra_checks=extra)
+    # _base_scan is py-tooling's scanner (sys.path above); pyright resolves the name to this file.
+    return _base_scan(repo_path, all_files=all_files, verbose=verbose, extra_checks=extra)  # pyright: ignore[reportCallIssue]
 
 
 def main() -> None:

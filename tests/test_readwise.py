@@ -19,6 +19,7 @@ def _last_row(db_path, table: str = "api_call_log") -> dict:
         cur = conn.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 1")
         cols = [d[0] for d in cur.description]
         row = cur.fetchone()
+        assert row is not None
         return dict(zip(cols, row))
     finally:
         conn.close()

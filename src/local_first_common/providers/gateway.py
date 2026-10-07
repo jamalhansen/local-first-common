@@ -73,7 +73,7 @@ class GatewayProvider(BaseProvider):
         self.output_tokens: int | None = None
 
     @property
-    def provider_name(self) -> str:
+    def provider_name(self) -> str:  # pyright: ignore[reportIncompatibleVariableOverride]  # resolved per instance
         return self.target_provider
 
     def _headers(self) -> dict[str, str]:

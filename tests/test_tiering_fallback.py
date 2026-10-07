@@ -138,17 +138,17 @@ class DummyBadJson(BaseProvider):
         super().__init__(model=model or self.default_model, debug=debug)
         self.call_count = 0
 
-    def _complete(self, system, user, response_model=None, images=None):
+    def _complete(self, system, user, response_model=None, images=None) -> str:
         self.call_count += 1
         import json
 
-        json.loads("not valid json")
+        return json.loads("not valid json")  # always raises
 
-    async def _acomplete(self, system, user, response_model=None, images=None):
+    async def _acomplete(self, system, user, response_model=None, images=None) -> str:
         self.call_count += 1
         import json
 
-        json.loads("not valid json")
+        return json.loads("not valid json")  # always raises
 
 
 def test_fallback_provider_fails_over_on_bad_json():

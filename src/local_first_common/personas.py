@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 import frontmatter
 import yaml
@@ -290,13 +291,13 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         fm = {}
 
     # Extract Name from filename or fm or H1
-    name = fm.get("name") or path.stem
+    name = str(fm.get("name") or path.stem)
     h1_match = re.search(r"^# (.*)$", content, re.MULTILINE)
     if h1_match and not fm.get("name"):
         name = h1_match.group(1).strip()
 
     # Extract Archetype
-    archetype = fm.get("archetype") or "General Reader"
+    archetype = str(fm.get("archetype") or "General Reader")
     archetype_match = re.search(r"\*\*Archetype:\*\* (.*)$", content, re.MULTILINE)
     if archetype_match and not fm.get("archetype"):
         archetype = archetype_match.group(1).strip()
@@ -319,14 +320,14 @@ def load_obsidian_persona(path: Path) -> BasePersona:
         else:
             system_prompt = f"You are {name}, {archetype}."
 
-    metadata = {"path": str(path), "source": "obsidian"}
+    metadata: dict[str, Any] = {"path": str(path), "source": "obsidian"}
     metadata.update(fm)
 
     return BasePersona(
         name=name,
         archetype=archetype,
         system_prompt=system_prompt,
-        domain=fm.get("domain", ""),
+        domain=str(fm.get("domain", "")),
         metadata=metadata,
     )
 

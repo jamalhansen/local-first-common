@@ -34,8 +34,10 @@ def build_model(
         model = model_name or PROVIDER_DEFAULTS[provider]
 
     if provider in ("ollama", "local"):
-        from pydantic_ai.models.openai import OpenAIChatModel
-        from pydantic_ai.providers.openai import OpenAIProvider
+        from pydantic_ai.models.openai import OpenAIChatModel  # pyright: ignore[reportMissingImports]  # optional extra
+        from pydantic_ai.providers.openai import (  # pyright: ignore[reportMissingImports]  # optional extra
+            OpenAIProvider,
+        )
 
         return OpenAIChatModel(
             model,
@@ -46,18 +48,22 @@ def build_model(
         )
 
     if provider == "anthropic":
-        from pydantic_ai.models.anthropic import AnthropicModel
+        from pydantic_ai.models.anthropic import (  # pyright: ignore[reportMissingImports]  # optional extra
+            AnthropicModel,
+        )
 
         return AnthropicModel(model)
 
     if provider == "groq":
-        from pydantic_ai.models.groq import GroqModel
+        from pydantic_ai.models.groq import GroqModel  # pyright: ignore[reportMissingImports]  # optional extra
 
         return GroqModel(model)
 
     if provider == "deepseek":
-        from pydantic_ai.models.openai import OpenAIChatModel
-        from pydantic_ai.providers.openai import OpenAIProvider
+        from pydantic_ai.models.openai import OpenAIChatModel  # pyright: ignore[reportMissingImports]  # optional extra
+        from pydantic_ai.providers.openai import (  # pyright: ignore[reportMissingImports]  # optional extra
+            OpenAIProvider,
+        )
 
         return OpenAIChatModel(
             model,
@@ -68,12 +74,12 @@ def build_model(
         )
 
     if provider == "gemini":
-        from pydantic_ai.models.google import GoogleModel
+        from pydantic_ai.models.google import GoogleModel  # pyright: ignore[reportMissingImports]  # optional extra
 
         return GoogleModel(model)
 
     if provider == "mock":
-        from pydantic_ai.models.test import TestModel
+        from pydantic_ai.models.test import TestModel  # pyright: ignore[reportMissingImports]  # optional extra
 
         return TestModel()
 

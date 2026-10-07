@@ -26,7 +26,8 @@ def test_label_from_env_and_mtime_advances(tmp_path, monkeypatch):
     os.utime(path, (1_000_000, 1_000_000))  # pretend the last beat was long ago
     assert hb.last_heartbeat("com.localfirst.discovery-loop") == 1_000_000
     assert hb.heartbeat() is True
-    assert hb.last_heartbeat("com.localfirst.discovery-loop") > 1_000_000
+    beat = hb.last_heartbeat("com.localfirst.discovery-loop")
+    assert beat is not None and beat > 1_000_000
 
 
 def test_never_beaten_is_none(tmp_path, monkeypatch):

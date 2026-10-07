@@ -48,7 +48,7 @@ import time
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 from urllib.parse import urlparse
 
 _DEFAULT_SYNC_PATH = Path("~/sync/local-first/processing_log.duckdb").expanduser()
@@ -396,7 +396,7 @@ def flush_queued_runs(db_path: str | Path | None = None) -> int:
         ok = _persist_run_payloads(
             Path(path_str),
             payloads,
-            source_location=payloads[0][2] if payloads else None,
+            source_location=str(payloads[0][2]) if payloads and payloads[0][2] is not None else None,
         )
         _record_write_stat(ok, time.monotonic() - start)
         if ok:
@@ -618,7 +618,7 @@ class _TrackedRun:
     def model(self, value: str | None):
         self._run.model = value
 
-    def track(self, result: any, item_count: int | None = None):
+    def track(self, result: Any, item_count: int | None = None):
         """Extract metadata (tokens, etc.) from a result object.
 
         Supports:
@@ -639,14 +639,14 @@ class _TrackedRun:
             try:
                 usage = result.usage()
                 if hasattr(usage, "input_tokens"):  # pydantic-ai newer style
-                    self._run.input_tokens = usage.input_tokens
-                    self._run.output_tokens = usage.output_tokens
+                    self._run.input_tokens = getattr(usage, "input_tokens", None)
+                    self._run.output_tokens = getattr(usage, "output_tokens", None)
                 elif hasattr(usage, "request_tokens"):  # pydantic-ai 0.0.14+
-                    self._run.input_tokens = usage.request_tokens
-                    self._run.output_tokens = usage.response_tokens
+                    self._run.input_tokens = getattr(usage, "request_tokens", None)
+                    self._run.output_tokens = getattr(usage, "response_tokens", None)
                 elif hasattr(usage, "prompt_tokens"):  # older or other styles
-                    self._run.input_tokens = usage.prompt_tokens
-                    self._run.output_tokens = usage.completion_tokens
+                    self._run.input_tokens = getattr(usage, "prompt_tokens", None)
+                    self._run.output_tokens = getattr(usage, "completion_tokens", None)
             except Exception as exc:  # noqa: BLE001
                 _warn_tracking_failure(
                     "Could not extract usage() metadata",

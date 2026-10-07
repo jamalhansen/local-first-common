@@ -186,9 +186,9 @@ def purge_old_logs(
     try:
         conn.execute(_CREATE_OPERATIONAL_LOG_SEQUENCE)
         conn.execute(_CREATE_OPERATIONAL_LOG_TABLE)
-        before = conn.execute("SELECT COUNT(*) FROM operational_log").fetchone()[0]
+        before = (conn.execute("SELECT COUNT(*) FROM operational_log").fetchone() or (0,))[0]
         conn.execute(_DELETE_OLD_OPERATIONAL_LOG, [cutoff.replace(tzinfo=None)])
-        after = conn.execute("SELECT COUNT(*) FROM operational_log").fetchone()[0]
+        after = (conn.execute("SELECT COUNT(*) FROM operational_log").fetchone() or (0,))[0]
         return int(before - after)
     finally:
         conn.close()

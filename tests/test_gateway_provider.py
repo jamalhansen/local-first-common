@@ -262,6 +262,7 @@ class TestResolveProviderGatewayDelegation:
         real caller instead of always "llm-gateway-service"."""
         with patch("local_first_common.cli.LLM_GATEWAY_URL", "http://127.0.0.1:8788"):
             provider = resolve_provider(provider_name="anthropic", tool_name="my-tool")
+        assert isinstance(provider, GatewayProvider)
         assert provider.tool_name == "my-tool"
 
     def test_gateway_url_set_still_validates_unknown_provider(self, monkeypatch):

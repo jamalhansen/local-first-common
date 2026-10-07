@@ -117,7 +117,7 @@ def run_report(db_path: Path, hours: int, limit: int, verbose: bool = False) -> 
             return 1
 
         if verbose:
-            total = con.execute("SELECT COUNT(*) FROM operational_log").fetchone()[0]
+            total = (con.execute("SELECT COUNT(*) FROM operational_log").fetchone() or (0,))[0]
             console.print(f"Operational rows available: {total}")
 
         context_rows = top_run_contexts(con, hours, limit)

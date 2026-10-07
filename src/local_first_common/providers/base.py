@@ -134,6 +134,7 @@ class BaseProvider(ABC):
                     time.sleep(wait)
                     continue
                 raise
+        raise RuntimeError("rate-limit retry loop ended without a result")  # e.g. rate_limit_retries < 0
 
     async def _acomplete_with_backoff(
         self,
@@ -166,6 +167,7 @@ class BaseProvider(ABC):
                     await asyncio.sleep(wait)
                     continue
                 raise
+        raise RuntimeError("rate-limit retry loop ended without a result")  # e.g. rate_limit_retries < 0
 
     @overload
     def complete(
@@ -198,7 +200,7 @@ class BaseProvider(ABC):
         images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
-    ) -> str | dict[str, Any]: ...
+    ) -> Any: ...
 
     def complete(
         self,
@@ -270,7 +272,7 @@ class BaseProvider(ABC):
         images: list[str] | None = None,
         max_retries: int = 1,
         rate_limit_retries: int = 3,
-    ) -> str | dict[str, Any]: ...
+    ) -> Any: ...
 
     async def acomplete(
         self,

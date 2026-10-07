@@ -62,7 +62,7 @@ class TestProvidersDict:
 class TestBaseProvider:
     def test_cannot_instantiate_directly(self):
         with pytest.raises(TypeError):
-            BaseProvider()
+            BaseProvider()  # pyright: ignore[reportAbstractUsage]  # instantiating the ABC on purpose
 
     def test_default_model_used_when_no_model_given(self):
         class Concrete(BaseProvider):
@@ -574,19 +574,19 @@ class TestGeminiProvider:
         fake_part = MagicMock()
         fake_part.from_bytes = MagicMock(side_effect=lambda data, mime_type: captured_parts.append(data) or MagicMock())
         fake_types_module = pytypes.ModuleType("google.genai.types")
-        fake_types_module.Part = fake_part
-        fake_types_module.GenerateContentConfig = MagicMock(return_value=MagicMock())
+        fake_types_module.Part = fake_part  # pyright: ignore[reportAttributeAccessIssue]  # building a fake module
+        fake_types_module.GenerateContentConfig = MagicMock(return_value=MagicMock())  # pyright: ignore[reportAttributeAccessIssue]  # building a fake module
 
         fake_response = MagicMock()
         fake_response.text = "a description"
         fake_client = MagicMock()
         fake_client.models.generate_content = MagicMock(return_value=fake_response)
         fake_genai_module = pytypes.ModuleType("google.genai")
-        fake_genai_module.Client = MagicMock(return_value=fake_client)
-        fake_genai_module.types = fake_types_module
+        fake_genai_module.Client = MagicMock(return_value=fake_client)  # pyright: ignore[reportAttributeAccessIssue]  # building a fake module
+        fake_genai_module.types = fake_types_module  # pyright: ignore[reportAttributeAccessIssue]  # building a fake module
 
         fake_google_module = pytypes.ModuleType("google")
-        fake_google_module.genai = fake_genai_module
+        fake_google_module.genai = fake_genai_module  # pyright: ignore[reportAttributeAccessIssue]  # building a fake module
 
         with patch.dict(
             sys.modules,

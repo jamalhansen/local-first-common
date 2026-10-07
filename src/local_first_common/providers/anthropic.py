@@ -8,8 +8,8 @@ from .base import BaseProvider
 logger = logging.getLogger(__name__)
 
 try:
-    from anthropic import Anthropic as _Anthropic
-    from anthropic import AsyncAnthropic as _AsyncAnthropic
+    from anthropic import Anthropic as _Anthropic  # pyright: ignore[reportMissingImports]  # optional extra
+    from anthropic import AsyncAnthropic as _AsyncAnthropic  # pyright: ignore[reportMissingImports]  # optional extra
 except ImportError:
     _Anthropic = None  # type: ignore[assignment,misc]
     _AsyncAnthropic = None  # type: ignore[assignment,misc]

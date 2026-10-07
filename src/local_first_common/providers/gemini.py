@@ -38,8 +38,8 @@ class GeminiProvider(BaseProvider):
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
         try:
-            from google import genai
-            from google.genai import types
+            from google import genai  # pyright: ignore[reportAttributeAccessIssue]  # optional extra
+            from google.genai import types  # pyright: ignore[reportMissingImports]  # optional extra
         except ImportError as err:
             raise RuntimeError(
                 "google-genai package is required for GeminiProvider. Install it with: uv add google-genai"
@@ -105,8 +105,8 @@ class GeminiProvider(BaseProvider):
         images: list[str] | None = None,
     ) -> str | dict[str, Any]:
         try:
-            from google import genai
-            from google.genai import types
+            from google import genai  # pyright: ignore[reportAttributeAccessIssue]  # optional extra
+            from google.genai import types  # pyright: ignore[reportMissingImports]  # optional extra
         except ImportError as err:
             raise RuntimeError(
                 "google-genai package is required for GeminiProvider. Install it with: uv add google-genai"

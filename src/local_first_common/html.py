@@ -2,7 +2,7 @@ import re
 from typing import NamedTuple
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 
 class ArticleMetadata(NamedTuple):
@@ -10,6 +10,19 @@ class ArticleMetadata(NamedTuple):
     description: str
     author: str = ""
     published_date: str = ""
+
+
+def _attr(tag: object, name: str) -> str:
+    """A tag's attribute as a stripped str: "" when the tag or attribute is missing,
+    multi-valued attributes (class, rel) joined with spaces."""
+    if not isinstance(tag, Tag):
+        return ""
+    value = tag.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        value = " ".join(value)
+    return str(value).strip()
 
 
 def extract_metadata(html: str) -> ArticleMetadata:
@@ -24,7 +37,7 @@ def extract_metadata(html: str) -> ArticleMetadata:
 
     # Title
     og_title = soup.find("meta", attrs={"property": "og:title"})
-    title = (og_title.get("content", "").strip() if og_title else "") or ""
+    title = _attr(og_title, "content")
     if not title:
         title_tag = soup.find("title")
         title = title_tag.get_text(strip=True) if title_tag else ""
@@ -35,10 +48,10 @@ def extract_metadata(html: str) -> ArticleMetadata:
 
     # Description
     og_desc = soup.find("meta", attrs={"property": "og:description"})
-    description = (og_desc.get("content", "").strip() if og_desc else "") or ""
+    description = _attr(og_desc, "content")
     if not description:
         desc_tag = soup.find("meta", attrs={"name": "description"})
-        description = desc_tag.get("content", "").strip() if desc_tag else ""
+        description = _attr(desc_tag, "content")
 
     # Published date
     pub_meta = (
@@ -48,7 +61,7 @@ def extract_metadata(html: str) -> ArticleMetadata:
     )
     published = ""
     if pub_meta:
-        raw = pub_meta.get("content", "").strip()
+        raw = _attr(pub_meta, "content")
         if raw:
             published = raw[:10]  # ISO date truncate
 
@@ -122,7 +135,7 @@ def extract_link_contexts(html: str, base_url: str) -> list[LinkContext]:
     results: list[LinkContext] = []
     seen: set[str] = set()
     for a in container.find_all("a", href=True):
-        href = a["href"].strip()
+        href = _attr(a, "href")
         if not href or href.startswith("#"):
             continue
         absolute = urljoin(base_url, href)

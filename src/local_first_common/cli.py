@@ -232,7 +232,7 @@ def resolve_provider(
         return primary
 
     cls = providers[provider_name]
-    kwargs = {"model": model}
+    kwargs: dict[str, Any] = {"model": model}
     if debug:
         kwargs["debug"] = True
     try:
@@ -250,7 +250,7 @@ def resolve_provider(
             if fb_prov_name in providers and fb_prov_name not in ("ollama", "local"):
                 try:
                     fb_cls = providers[fb_prov_name]
-                    fb_kwargs = {"model": fb_model_name}
+                    fb_kwargs: dict[str, Any] = {"model": fb_model_name}
                     if debug:
                         fb_kwargs["debug"] = True
                     try:

@@ -32,6 +32,7 @@ def _row_count(db_path: Path, table: str = "processing_log") -> int:
     conn = duckdb.connect(str(db_path))
     try:
         result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+        assert result is not None
         return result[0]
     finally:
         conn.close()
@@ -43,6 +44,7 @@ def _last_row(db_path: Path, table: str = "processing_log") -> dict:
         cur = conn.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 1")
         cols = [d[0] for d in cur.description]
         row = cur.fetchone()
+        assert row is not None
         return dict(zip(cols, row))
     finally:
         conn.close()

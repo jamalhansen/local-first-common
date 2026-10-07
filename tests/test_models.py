@@ -21,13 +21,13 @@ class TestAliasAndDefaults:
 
     def test_extra_fields_preserved(self):
         m = ContentMetadata.from_metadata({"Category": "[[Blog Post]]", "extra_val": 123})
-        assert m.extra_val == 123
+        assert m.model_extra == {"extra_val": 123}
         dump = m.to_metadata()
         assert dump["Category"] == "[[Blog Post]]"
         assert dump["extra_val"] == 123
 
     def test_serialization_round_trip(self):
-        m = ContentMetadata(category="[[Newsletter]]", tags=["ai", "local"])
+        m = ContentMetadata.model_validate({"category": "[[Newsletter]]", "tags": ["ai", "local"]})
         dump = m.to_metadata()
         assert dump["Category"] == "[[Newsletter]]"
         assert dump["tags"] == ["ai", "local"]
@@ -37,19 +37,19 @@ class TestAliasAndDefaults:
 
 class TestCategoryName:
     def test_strips_wikilink_brackets(self):
-        m = ContentMetadata(category="[[Newsletter]]")
+        m = ContentMetadata.model_validate({"category": "[[Newsletter]]"})
         assert m.category_name == "Newsletter"
 
     def test_strips_blog_post_brackets(self):
-        m = ContentMetadata(category="[[Blog Post]]")
+        m = ContentMetadata.model_validate({"category": "[[Blog Post]]"})
         assert m.category_name == "Blog Post"
 
     def test_uncategorized_passthrough(self):
-        m = ContentMetadata()
+        m = ContentMetadata.model_validate({})
         assert m.category_name == "uncategorized"
 
     def test_plain_string_passthrough(self):
-        m = ContentMetadata(category="newsletter")
+        m = ContentMetadata.model_validate({"category": "newsletter"})
         assert m.category_name == "newsletter"
 
 

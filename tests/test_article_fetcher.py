@@ -268,6 +268,7 @@ class TestRenderFallback:
                 render_domains=frozenset({"x.com"}),
                 renderer=lambda _u: self.RENDERED_TWEET,
             )
+        assert item is not None
         assert "@addyosmani" not in item.title
         assert "809K" not in item.title
         assert item.title.startswith("Starting more AI agents")
@@ -356,6 +357,7 @@ class TestRemoteRetrieverDelegation:
         ):
             item = fetch_article_metadata("https://duckdb.org/article")
         mock_fetch.assert_called_once()
+        assert item is not None
         assert item.title == "Understanding DuckDB: A Practical Guide"
 
     def test_delegates_and_builds_a_feed_item_on_success(self):

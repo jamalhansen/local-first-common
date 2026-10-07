@@ -58,7 +58,7 @@ def ingest_file(path: Path) -> tuple[str, str]:
     if path.suffix.lower() == ".md":
         try:
             post = frontmatter.load(path)
-            title = post.get("title") or path.stem
+            title = str(post.get("title") or path.stem)
             return title, post.content
         except Exception as e:  # noqa: BLE001 - malformed frontmatter in a user's own file should fall back to plain text, not crash
             logger.warning("Failed to parse frontmatter for %s: %s", path, e)

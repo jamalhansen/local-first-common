@@ -29,8 +29,9 @@ class OllamaProvider(BaseProvider):
                 response = client.get(f"{self.models_url}/api/tags")
                 response.raise_for_status()
                 data = response.json()
-                self._installed_models_cache = data.get("models", [])
-                return self._installed_models_cache
+                models: list[dict[str, Any]] = data.get("models", [])
+                self._installed_models_cache = models
+                return models
         except Exception as e:  # noqa: BLE001 - Ollama may be offline or unreachable; degrade to an empty list rather than crash
             logger.warning(f"Could not fetch Ollama models: {e}")
             return []

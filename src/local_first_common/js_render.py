@@ -42,7 +42,9 @@ def fetch_rendered_text(
     """
     if sync_playwright_fn is None:
         try:
-            from playwright.sync_api import sync_playwright as sync_playwright_fn
+            from playwright.sync_api import (  # pyright: ignore[reportMissingImports]  # optional extra
+                sync_playwright as sync_playwright_fn,
+            )
         except ImportError as e:
             raise RenderUnavailable(
                 "playwright is not installed. Install with: "
@@ -80,7 +82,9 @@ def fetch_rendered_html(
     """
     if sync_playwright_fn is None:
         try:
-            from playwright.sync_api import sync_playwright as sync_playwright_fn
+            from playwright.sync_api import (  # pyright: ignore[reportMissingImports]  # optional extra
+                sync_playwright as sync_playwright_fn,
+            )
         except ImportError as e:
             raise RenderUnavailable(
                 "playwright is not installed. Install with: "
